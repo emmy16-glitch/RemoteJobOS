@@ -30,3 +30,5 @@ jobs:
         run: npm run worker:match
       - name: Prepare verified-fact CV plans
         run: npm run worker:prepare-cvs
+      - name: Promote strong matches to application review queue
+        run: npm run worker:promote-applications
