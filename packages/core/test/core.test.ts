@@ -193,3 +193,32 @@ test("forces review when a restricted remote role is missing profile country", (
   assert.equal(result.decision, "review");
   assert.ok(result.missingSignals.some((item) => /eligibility requires review/i.test(item)));
 });
+
+
+test("classifies job lifecycle emails without an AI provider", async () => {
+  const { classifyJobEmail } = await import("../src/email.ts");
+
+  assert.equal(
+    classifyJobEmail({
+      subject: "Thank you for applying",
+      snippet: "We have received your application."
+    }).classification,
+    "application-received"
+  );
+
+  assert.equal(
+    classifyJobEmail({
+      subject: "Interview availability",
+      snippet: "Please select a time to meet with the hiring manager."
+    }).classification,
+    "interview"
+  );
+
+  assert.equal(
+    classifyJobEmail({
+      subject: "Application update",
+      snippet: "Unfortunately, we will not be moving forward with your application."
+    }).classification,
+    "rejection"
+  );
+});
