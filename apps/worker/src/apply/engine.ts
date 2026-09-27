@@ -16,8 +16,11 @@ export async function runApplicationPipeline(
   const attemptId = await store.startAttempt(context.applicationId, context.workerId);
 
   try {
+    const assets = await store.getAssets(context.applicationId);
+    const executionContext: ApplicationContext = { ...context, assets };
+
     await store.recordStage(attemptId, "scan", "started");
-    const fields = await adapter.scan(context);
+    const fields = await adapter.scan(executionContext);
 
     await store.recordStage(attemptId, "plan", "started", { fieldCount: fields.length });
     const verifiedAnswers = await store.getVerifiedAnswers(context.applicationId);
@@ -37,9 +40,9 @@ export async function runApplicationPipeline(
     }
 
     await store.recordStage(attemptId, "fill", "started");
-    await adapter.fill(context, plan);
+    await adapter.fill(executionContext, plan);
 
-    const verification = await adapter.verify(context, plan);
+    const verification = await adapter.verify(executionContext, plan);
     if (!verification.ok) {
       await store.recordStage(attemptId, "verify", "blocked", {
         verification: verification as unknown as Record<string, unknown>
@@ -57,7 +60,7 @@ export async function runApplicationPipeline(
     });
 
     if (context.dryRun) {
-      const screenshot = await adapter.screenshot?.(context, "dry-run-verified");
+      const screenshot = await adapter.screenshot?.(executionContext, "dry-run-verified");
       await store.recordStage(attemptId, "report", "verified", {
         dryRun: true,
         screenshot
@@ -77,10 +80,8 @@ export async function runApplicationPipeline(
       return { status: "blocked", attemptId, reason: "submission-fence-race" };
     }
 
-    // From here onward the application remains fenced even if the browser crashes.
-    // That is deliberate: an unknown submit outcome is safer than a duplicate submission.
     await store.recordStage(attemptId, "submit", "started");
-    const submission = await adapter.submit(context);
+    const submission = await adapter.submit(executionContext);
     if (!submission.submitted) {
       await store.recordStage(attemptId, "submit", "unknown", {
         url: submission.url,
@@ -93,7 +94,7 @@ export async function runApplicationPipeline(
       };
     }
 
-    const confirmation = await adapter.confirm(context);
+    const confirmation = await adapter.confirm(executionContext);
     await store.markSubmitted(context.applicationId, confirmation);
     await store.recordStage(
       attemptId,
@@ -110,5 +111,7 @@ export async function runApplicationPipeline(
     const reason = error instanceof Error ? error.message : String(error);
     await store.recordStage(attemptId, "report", "failed", undefined, reason).catch(() => undefined);
     return { status: "failed", attemptId, reason };
+  } finally {
+    await adapter.close?.().catch(() => undefined);
   }
 }
