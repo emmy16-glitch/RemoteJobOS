@@ -1,17 +1,23 @@
-import { discoverJobs } from "./discover.js";\nimport { matchJobs } from "./match.js";
-import { config, hasSupabase } from "./config.js";
+import { discoverJobs } from "./discover.js";
+import { matchJobs } from "./match.js";
+import { config, hasOptionalEnrichment, hasSupabase } from "./config.js";
 
 const command = process.argv[2] ?? "health";
 
 if (command === "discover") {
   await discoverJobs();
+} else if (command === "match") {
+  await matchJobs();
 } else if (command === "health") {
   console.log(JSON.stringify({
     ok: true,
     service: "remotejobos-worker",
     supabaseConfigured: hasSupabase(),
-    groqConfigured: Boolean(config.groqApiKey),
     dryRun: config.dryRun,
+    enrichment: {
+      enabled: hasOptionalEnrichment(),
+      provider: config.enrichmentProvider
+    },
     timestamp: new Date().toISOString()
   }, null, 2));
 } else {
