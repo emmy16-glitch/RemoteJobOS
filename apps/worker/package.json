@@ -10,7 +10,9 @@
     "health": "tsx src/index.ts health",
     "match": "tsx src/index.ts match",
     "prepare-cvs": "tsx src/index.ts prepare-cvs",
-    "apply-one": "tsx src/index.ts apply-one"
+    "apply-one": "tsx src/index.ts apply-one",
+    "promote-applications": "tsx src/index.ts promote-applications",
+    "process-application-reviews": "tsx src/index.ts process-application-reviews"
   },
   "dependencies": {
     "@remotejobos/core": "*",
