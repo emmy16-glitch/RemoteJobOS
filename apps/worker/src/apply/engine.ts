@@ -95,18 +95,25 @@ export async function runApplicationPipeline(
     }
 
     const confirmation = await adapter.confirm(executionContext);
-    await store.markSubmitted(context.applicationId, confirmation);
-    await store.recordStage(
-      attemptId,
-      "confirm",
-      confirmation.confirmed ? "submitted" : "unknown",
-      {
+    if (!confirmation.confirmed) {
+      await store.recordStage(attemptId, "confirm", "unknown", {
         confirmationUrl: confirmation.url,
         evidence: confirmation.evidence
-      }
-    );
+      });
+      return {
+        status: "failed",
+        attemptId,
+        reason: "Submit was clicked but confirmation could not be verified; application remains fenced"
+      };
+    }
 
-    return { status: "submitted", attemptId, confirmed: confirmation.confirmed };
+    await store.markSubmitted(context.applicationId, confirmation);
+    await store.recordStage(attemptId, "confirm", "submitted", {
+      confirmationUrl: confirmation.url,
+      evidence: confirmation.evidence
+    });
+
+    return { status: "submitted", attemptId, confirmed: true };
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     await store.recordStage(attemptId, "report", "failed", undefined, reason).catch(() => undefined);
