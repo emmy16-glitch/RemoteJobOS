@@ -1,4 +1,9 @@
-import type { NormalizedJob } from "@remotejobos/core";
+import {
+  canonicalizeJobUrl,
+  contentFingerprint,
+  makeJobDedupeKey,
+  type NormalizedJob
+} from "@remotejobos/core";
 import { config, hasSupabase } from "./config.js";
 
 export async function persistJobs(jobs: NormalizedJob[]) {
@@ -21,19 +26,35 @@ export async function persistJobs(jobs: NormalizedJob[]) {
     remote: job.remote,
     remote_scope: job.remoteScope,
     role_family: job.roleFamily,
-    tags: job.tags
+    tags: job.tags,
+    canonical_url: canonicalizeJobUrl(job.applyUrl),
+    dedupe_key: makeJobDedupeKey({
+      company: job.company,
+      title: job.title,
+      locationText: job.locationText
+    }),
+    content_fingerprint: contentFingerprint({
+      company: job.company,
+      title: job.title,
+      description: job.description
+    })
   }));
 
-  const response = await fetch(`${config.supabaseUrl}/rest/v1/jobs?on_conflict=source,external_id`, {
+  const response = await fetch(`${config.supabaseUrl}/rest/v1/rpc/ingest_discovered_jobs`, {
     method: "POST",
     headers: {
       apikey: config.supabaseServiceRoleKey,
       authorization: `Bearer ${config.supabaseServiceRoleKey}`,
-      "content-type": "application/json",
-      prefer: "resolution=merge-duplicates,return=minimal"
+      "content-type": "application/json"
     },
-    body: JSON.stringify(rows)
+    body: JSON.stringify({ p_jobs: rows })
   });
 
-  if (!response.ok) throw new Error(`Supabase persistence failed: ${response.status} ${await response.text()}`);
+  if (!response.ok) {
+    throw new Error(`Supabase ingestion failed: ${response.status} ${await response.text()}`);
+  }
+
+  const result = await response.json() as Array<{ inserted: number; updated: number; skipped: number }>;
+  const summary = result[0] ?? { inserted: 0, updated: 0, skipped: 0 };
+  console.log(`[persist] inserted=${summary.inserted} updated=${summary.updated} skipped=${summary.skipped}`);
 }
