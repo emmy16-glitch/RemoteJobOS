@@ -1,8 +1,8 @@
 import { discoverJobs } from "./discover.js";
 import { matchJobs } from "./match.js";
 import { prepareCvPlans } from "./prepare-cvs.js";
-import { promoteStrongMatchesToApplications } from "./promote-applications.js";
-import { processApplicationReviewQueue } from "./process-application-queue.js";
+import { syncApplications } from "./sync-applications.js";
+import { processApplicationTasks } from "./process-application-tasks.js";
 import { runOneApplication, type ApplicationRunMode } from "./apply/run-one.js";
 import { config, hasOptionalEnrichment, hasSupabase } from "./config.js";
 
@@ -14,11 +14,11 @@ if (command === "discover") {
   await matchJobs();
 } else if (command === "prepare-cvs") {
   await prepareCvPlans();
-} else if (command === "promote-applications") {
-  await promoteStrongMatchesToApplications();
-} else if (command === "process-application-reviews") {
+} else if (command === "sync-applications") {
+  await syncApplications();
+} else if (command === "process-application-tasks") {
   const maxTasks = Number(process.argv[3] ?? process.env.REMOTEJOBOS_MAX_REVIEW_TASKS ?? "3");
-  await processApplicationReviewQueue(Number.isFinite(maxTasks) ? Math.max(1, Math.min(10, maxTasks)) : 3);
+  await processApplicationTasks(Number.isFinite(maxTasks) ? maxTasks : 3);
 } else if (command === "apply-one") {
   const applicationId = process.argv[3] ?? process.env.REMOTEJOBOS_APPLICATION_ID ?? "";
   const mode = (process.argv[4] ?? process.env.REMOTEJOBOS_APPLICATION_MODE ?? "dry-run") as ApplicationRunMode;
