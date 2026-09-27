@@ -42,6 +42,7 @@ export interface CareerProfile {
   skills: string[];
   roleFamilies: RoleFamily[];
   maxSeniority: "intern" | "entry" | "junior" | "mid" | "senior";
+  country?: string;
   blockedRequirements?: string[];
 }
 
