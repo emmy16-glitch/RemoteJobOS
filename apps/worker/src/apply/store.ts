@@ -3,6 +3,7 @@ import { config, hasSupabase } from "../config.js";
 
 type CareerProfilePayload = {
   verifiedAnswers?: Record<string, string>;
+  assets?: Record<string, string>;
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -27,19 +28,26 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (text ? JSON.parse(text) : undefined) as T;
 }
 
+async function profileForApplication(applicationId: string): Promise<CareerProfilePayload> {
+  const apps = await request<Array<{ profile_id: string | null }>>(
+    `applications?select=profile_id&id=eq.${encodeURIComponent(applicationId)}&limit=1`
+  );
+  const profileId = apps[0]?.profile_id;
+  if (!profileId) return {};
+
+  const profiles = await request<Array<{ profile: CareerProfilePayload }>>(
+    `career_profiles?select=profile&id=eq.${encodeURIComponent(profileId)}&limit=1`
+  );
+  return profiles[0]?.profile ?? {};
+}
+
 export class SupabaseApplicationStore implements ApplicationStore {
   async getVerifiedAnswers(applicationId: string): Promise<Record<string, string>> {
-    const apps = await request<Array<{ profile_id: string | null }>>(
-      `applications?select=profile_id&id=eq.${encodeURIComponent(applicationId)}&limit=1`
-    );
-    const profileId = apps[0]?.profile_id;
-    if (!profileId) return {};
+    return (await profileForApplication(applicationId)).verifiedAnswers ?? {};
+  }
 
-    const profiles = await request<Array<{ profile: CareerProfilePayload }>>(
-      `career_profiles?select=profile&id=eq.${encodeURIComponent(profileId)}&limit=1`
-    );
-
-    return profiles[0]?.profile?.verifiedAnswers ?? {};
+  async getAssets(applicationId: string): Promise<Record<string, string>> {
+    return (await profileForApplication(applicationId)).assets ?? {};
   }
 
   async canSubmit(applicationId: string): Promise<{ allowed: boolean; reason: string }> {
