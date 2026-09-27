@@ -1,0 +1,53 @@
+import type {
+  ApplicationField,
+  FillPlanEntry,
+  VerificationReport
+} from "@remotejobos/core";
+
+export interface ApplicationContext {
+  applicationId: string;
+  jobUrl: string;
+  workerId: string;
+  dryRun: boolean;
+}
+
+export interface SubmitResult {
+  submitted: boolean;
+  url?: string;
+  message?: string;
+}
+
+export interface ConfirmationResult {
+  confirmed: boolean;
+  url?: string;
+  evidence?: string;
+}
+
+export interface ApplicationAdapter {
+  readonly name: string;
+  canHandle(url: string): boolean;
+  scan(context: ApplicationContext): Promise<ApplicationField[]>;
+  fill(context: ApplicationContext, plan: FillPlanEntry[]): Promise<void>;
+  verify(context: ApplicationContext, plan: FillPlanEntry[]): Promise<VerificationReport>;
+  submit(context: ApplicationContext): Promise<SubmitResult>;
+  confirm(context: ApplicationContext): Promise<ConfirmationResult>;
+  screenshot?(context: ApplicationContext, label: string): Promise<string | undefined>;
+}
+
+export interface ApplicationStore {
+  getVerifiedAnswers(applicationId: string): Promise<Record<string, string>>;
+  canSubmit(applicationId: string): Promise<{ allowed: boolean; reason: string }>;
+  startAttempt(applicationId: string, workerId: string): Promise<string>;
+  recordStage(
+    attemptId: string,
+    stage: string,
+    status: "started" | "blocked" | "failed" | "verified" | "submitted" | "unknown",
+    report?: Record<string, unknown>,
+    error?: string
+  ): Promise<void>;
+  fenceSubmission(applicationId: string, attemptId: string): Promise<boolean>;
+  markSubmitted(
+    applicationId: string,
+    confirmation: ConfirmationResult
+  ): Promise<void>;
+}
