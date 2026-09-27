@@ -17,6 +17,9 @@ The critical runtime does **not** depend on the user's laptop being online. Sche
 - Shared application field planner with mandatory human review for sensitive/high-impact answers
 - Postgres queue leasing, retries and idempotency keys
 - Submission fences and per-company rate/duplicate protection
+- Playwright form scanner/filler/verifier for Greenhouse, Lever and Ashby
+- Verified file-asset handling with CAPTCHA detection and no bypass attempts
+- Manual GitHub Actions dry-run/review workflow with screenshot evidence
 - Responsive Next.js monitoring dashboard
 - GitHub Actions CI, scheduled discovery and scheduled matching
 - Optional Groq adapter; the system's core path works without AI
@@ -169,4 +172,4 @@ Scheduled cloud workflows run discovery and matching independently of any person
 
 ## Status
 
-The foundation is implemented and CI is green. Browser submission adapters, authenticated personal dashboard data, CV rendering, standalone Gmail OAuth tracking, and production deployment are the next major slices.
+The cloud foundation and guarded application-review pipeline are implemented and CI is green. Real submission remains intentionally disabled in the GitHub workflow until end-to-end dry runs use a configured private profile and verified CV assets. Authenticated live dashboard data, CV PDF rendering/storage, standalone Gmail OAuth tracking, broader ATS adapters, and production deployment are the next major slices.
