@@ -112,3 +112,84 @@ test("keeps CV plans fact-locked and selects relevant verified facts", async () 
   assert.equal(selected[0]?.body, facts[0].body);
   assert.equal(selected.length, 1);
 });
+
+
+test("rejects a remote role when explicit country scope does not match profile", () => {
+  const profile: CareerProfile = {
+    skills: ["linux", "docker", "git"],
+    roleFamilies: ["devops"],
+    maxSeniority: "junior",
+    country: "Nigeria"
+  };
+
+  const job: NormalizedJob = {
+    source: "test",
+    externalId: "geo-us",
+    title: "Junior DevOps Engineer",
+    company: "Example",
+    description: "Linux Docker Git",
+    applyUrl: "https://example.com/apply",
+    locationText: "United States",
+    remote: true,
+    remoteScope: "us-only",
+    roleFamily: "devops",
+    tags: ["linux", "docker", "git"]
+  };
+
+  const result = scoreJob(job, profile);
+  assert.equal(result.decision, "reject");
+  assert.match(result.reasons.join(" "), /US-only remote scope does not match/i);
+});
+
+test("allows Africa-scoped remote roles for a Nigeria profile", () => {
+  const profile: CareerProfile = {
+    skills: ["linux", "docker", "git"],
+    roleFamilies: ["devops"],
+    maxSeniority: "junior",
+    country: "Nigeria"
+  };
+
+  const job: NormalizedJob = {
+    source: "test",
+    externalId: "geo-africa",
+    title: "Junior DevOps Engineer",
+    company: "Example",
+    description: "Linux Docker Git",
+    applyUrl: "https://example.com/apply",
+    locationText: "Africa",
+    remote: true,
+    remoteScope: "africa",
+    roleFamily: "devops",
+    tags: ["linux", "docker", "git"]
+  };
+
+  const result = scoreJob(job, profile);
+  assert.equal(result.decision, "strong-match");
+  assert.equal(result.breakdown.eligibility, 15);
+});
+
+test("forces review when a restricted remote role is missing profile country", () => {
+  const profile: CareerProfile = {
+    skills: ["linux", "docker", "git"],
+    roleFamilies: ["devops"],
+    maxSeniority: "junior"
+  };
+
+  const job: NormalizedJob = {
+    source: "test",
+    externalId: "geo-unknown-user",
+    title: "Junior DevOps Engineer",
+    company: "Example",
+    description: "Linux Docker Git",
+    applyUrl: "https://example.com/apply",
+    locationText: "Germany, France",
+    remote: true,
+    remoteScope: "country-restricted",
+    roleFamily: "devops",
+    tags: ["linux", "docker", "git"]
+  };
+
+  const result = scoreJob(job, profile);
+  assert.equal(result.decision, "review");
+  assert.ok(result.missingSignals.some((item) => /eligibility requires review/i.test(item)));
+});
