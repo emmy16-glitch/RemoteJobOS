@@ -35,6 +35,35 @@ async function getJson<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+async function patchApplication(
+  applicationId: string,
+  status: string,
+  nextAction: string
+): Promise<void> {
+  if (!hasSupabase()) return;
+
+  const response = await fetch(
+    `${config.supabaseUrl}/rest/v1/applications?id=eq.${encodeURIComponent(applicationId)}`,
+    {
+      method: "PATCH",
+      headers: {
+        apikey: config.supabaseServiceRoleKey,
+        authorization: `Bearer ${config.supabaseServiceRoleKey}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        status,
+        next_action: nextAction,
+        updated_at: new Date().toISOString()
+      })
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Application status update failed: ${response.status} ${await response.text()}`);
+  }
+}
+
 async function recordEvent(
   eventType: string,
   message: string,
@@ -81,6 +110,11 @@ export async function runOneApplication(
   const registry = createDefaultAdapterRegistry();
   const adapter = registry.resolve(job.apply_url);
   if (!adapter) {
+    await patchApplication(
+      applicationId,
+      "ready-for-review",
+      "No verified browser adapter exists for this ATS yet"
+    );
     await recordEvent(
       "application.needs_adapter",
       "No supported ATS adapter matched this application URL",
@@ -130,6 +164,15 @@ export async function runOneApplication(
     adapter,
     new SupabaseApplicationStore()
   );
+
+  if (outcome.status !== "submitted") {
+    const nextAction =
+      outcome.status === "dry-run-verified"
+        ? "Dry-run passed: form filled and DOM values verified; ready for approval"
+        : outcome.reason;
+
+    await patchApplication(applicationId, "ready-for-review", nextAction);
+  }
 
   await recordEvent(
     outcome.status === "failed" ? "application.failed" : "application.finished",
