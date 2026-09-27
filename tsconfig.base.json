@@ -4,11 +4,6 @@
     "lib": ["ES2022", "DOM"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "baseUrl": ".",
-    "paths": {
-      "@remotejobos/core": ["packages/core/src/index.ts"],
-      "@remotejobos/core/*": ["packages/core/src/*"]
-    },
     "strict": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
