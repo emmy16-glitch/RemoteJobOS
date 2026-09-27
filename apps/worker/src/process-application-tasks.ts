@@ -33,21 +33,40 @@ export async function processOneApplicationTask(): Promise<boolean> {
       successfulTask ? 300 : 1800
     );
 
-    console.log(
-      "[apply-task] application=" +
-        applicationId +
-        " outcome=" +
-        outcome.status
-    );
+    console.log("[apply-task] application=" + applicationId + " outcome=" + outcome.status);
 
-    if (!successfulTask) {
-      throw new Error(outcome.reason);
-    }
-
+    if (!successfulTask) throw new Error(outcome.reason);
     return true;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+
+    // Unsupported ATSs are already marked ready-for-review by runOneApplication.
+    // Completing this queue item avoids three pointless browser retries.
+    if (message.startsWith("No supported application adapter")) {
+      await finishTask(task, true).catch(() => undefined);
+      console.log("[apply-task] unsupported ATS moved to human review: " + applicationId);
+      return true;
+    }
+
     await finishTask(task, false, message, 1800).catch(() => undefined);
     throw error;
   }
+}
+
+export async function processApplicationTasks(maxTasks = 3): Promise<number> {
+  let processed = 0;
+  const limit = Math.max(1, Math.min(10, maxTasks));
+
+  while (processed < limit) {
+    try {
+      const hadTask = await processOneApplicationTask();
+      if (!hadTask) break;
+    } catch (error) {
+      console.error("[apply-task] task failed:", error);
+    }
+    processed += 1;
+  }
+
+  console.log("[apply-task] processed=" + processed);
+  return processed;
 }
