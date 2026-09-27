@@ -1,0 +1,132 @@
+import { timingSafeEqual } from "node:crypto";
+import { NextResponse, type NextRequest } from "next/server";
+import { authenticatedUserId } from "../../../../lib/auth";
+import { createAdminSupabaseClient } from "../../../../lib/supabase/admin";
+import { encryptGmailRefreshToken } from "../../../../lib/gmail/crypto";
+import { gmailOAuthEnv } from "../../../../lib/gmail/env";
+
+type TokenResponse = {
+  access_token?: string;
+  refresh_token?: string;
+  expires_in?: number;
+  scope?: string;
+  token_type?: string;
+  error?: string;
+  error_description?: string;
+};
+
+type GmailProfile = {
+  emailAddress?: string;
+};
+
+function safeStateEqual(expected: string, actual: string): boolean {
+  const a = Buffer.from(expected);
+  const b = Buffer.from(actual);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+function redirectWithError(request: NextRequest, message: string) {
+  return NextResponse.redirect(
+    new URL("/inbox?error=" + encodeURIComponent(message), request.url)
+  );
+}
+
+export async function GET(request: NextRequest) {
+  const userId = await authenticatedUserId();
+  if (!userId) {
+    return NextResponse.redirect(new URL("/login?next=/inbox", request.url));
+  }
+
+  const returnedError = request.nextUrl.searchParams.get("error");
+  if (returnedError) {
+    return redirectWithError(request, "Google authorization was not completed.");
+  }
+
+  const code = request.nextUrl.searchParams.get("code") ?? "";
+  const state = request.nextUrl.searchParams.get("state") ?? "";
+  const expectedState =
+    request.cookies.get("remotejobos_gmail_oauth_state")?.value ?? "";
+
+  if (!code || !state || !expectedState || !safeStateEqual(expectedState, state)) {
+    return redirectWithError(request, "Invalid or expired Gmail OAuth state.");
+  }
+
+  const env = gmailOAuthEnv();
+  if (!env.configured) {
+    return redirectWithError(request, "Gmail OAuth environment is not configured.");
+  }
+
+  const redirectUri =
+    env.redirectUri || new URL("/api/gmail/callback", request.url).toString();
+
+  const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: env.clientId,
+      client_secret: env.clientSecret,
+      code,
+      grant_type: "authorization_code",
+      redirect_uri: redirectUri
+    })
+  });
+
+  const tokens = (await tokenResponse.json()) as TokenResponse;
+  if (!tokenResponse.ok || !tokens.access_token) {
+    return redirectWithError(
+      request,
+      tokens.error_description ?? tokens.error ?? "Google token exchange failed."
+    );
+  }
+
+  if (!tokens.refresh_token) {
+    return redirectWithError(
+      request,
+      "Google did not return an offline refresh token. Reconnect and grant consent again."
+    );
+  }
+
+  const gmailProfileResponse = await fetch(
+    "https://gmail.googleapis.com/gmail/v1/users/me/profile",
+    {
+      headers: {
+        authorization: "Bearer " + tokens.access_token
+      }
+    }
+  );
+
+  if (!gmailProfileResponse.ok) {
+    return redirectWithError(request, "Could not read the connected Gmail profile.");
+  }
+
+  const gmailProfile = (await gmailProfileResponse.json()) as GmailProfile;
+  const encrypted = encryptGmailRefreshToken(tokens.refresh_token);
+  const supabase = createAdminSupabaseClient();
+
+  const { error } = await supabase
+    .from("gmail_connections")
+    .upsert(
+      {
+        owner_id: userId,
+        email_address: gmailProfile.emailAddress ?? null,
+        refresh_token_ciphertext: encrypted.ciphertext,
+        token_iv: encrypted.iv,
+        token_tag: encrypted.tag,
+        granted_scope: tokens.scope ?? "https://www.googleapis.com/auth/gmail.readonly",
+        active: true,
+        last_error: null,
+        updated_at: new Date().toISOString()
+      },
+      { onConflict: "owner_id" }
+    );
+
+  if (error) {
+    return redirectWithError(request, error.message);
+  }
+
+  const response = NextResponse.redirect(
+    new URL("/inbox?connected=1", request.url)
+  );
+  response.cookies.delete("remotejobos_gmail_oauth_state");
+  return response;
+}
