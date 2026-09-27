@@ -2,13 +2,18 @@
   "name": "remotejobos",
   "private": true,
   "version": "0.1.0",
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "dev": "npm run dev --workspace @remotejobos/web",
     "build": "npm run build --workspace @remotejobos/core && npm run build --workspace @remotejobos/worker && npm run build --workspace @remotejobos/web",
-    "typecheck": "npm run typecheck --workspace @remotejobos/core && npm run typecheck --workspace @remotejobos/worker && npm run typecheck --workspace @remotejobos/web",
+    "typecheck": "npm run build --workspace @remotejobos/core && npm run typecheck --workspace @remotejobos/worker && npm run typecheck --workspace @remotejobos/web",
     "worker:discover": "npm run discover --workspace @remotejobos/worker",
     "worker:health": "npm run health --workspace @remotejobos/worker"
   },
-  "engines": { "node": ">=22" }
+  "engines": {
+    "node": ">=22"
+  }
 }
