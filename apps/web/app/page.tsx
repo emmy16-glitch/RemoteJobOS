@@ -7,7 +7,7 @@ const jobs = [
   { score: 84, role: "Data Analyst", company: "Metric Forge", scope: "Remote", family: "Data" }
 ];
 
-const activity = [
+const activity: Array<[string, string, string]> = [
   ["21:31", "Discovery", "137 remote jobs checked across active sources"],
   ["21:29", "Filter", "23 duplicate or non-remote roles removed"],
   ["21:26", "Match", "Security Analyst marked strong match"],
