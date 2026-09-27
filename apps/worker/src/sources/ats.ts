@@ -1,0 +1,159 @@
+import { classifyRemoteScope, classifyRoleFamily, looksRemote, type NormalizedJob } from "@remotejobos/core";
+import type { JobSource } from "./types.js";
+
+export type AtsProvider = "greenhouse" | "lever" | "ashby";
+
+export interface AtsBoard {
+  provider: AtsProvider;
+  boardKey: string;
+}
+
+function textOnly(input: string) {
+  return input.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+export function greenhouseSource(boardKey: string): JobSource {
+  return {
+    name: `greenhouse:${boardKey}`,
+    async fetchJobs(): Promise<NormalizedJob[]> {
+      const response = await fetch(
+        `https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(boardKey)}/jobs?content=true`,
+        { headers: { "user-agent": "RemoteJobOS/0.1 (+https://github.com/emmy16-glitch/RemoteJobOS)" } }
+      );
+      if (!response.ok) throw new Error(`Greenhouse ${boardKey} returned ${response.status}`);
+      const payload = (await response.json()) as {
+        jobs?: Array<{
+          id: number;
+          name: string;
+          absolute_url: string;
+          content?: string;
+          updated_at?: string;
+          location?: { name?: string };
+        }>;
+      };
+
+      return (payload.jobs ?? []).flatMap((job) => {
+        const description = textOnly(job.content ?? "");
+        const location = job.location?.name ?? "";
+        const remote = looksRemote(`${job.name} ${location} ${description}`);
+        if (!remote) return [];
+        return [{
+          source: `greenhouse:${boardKey}`,
+          externalId: String(job.id),
+          title: job.name,
+          company: boardKey,
+          description,
+          applyUrl: job.absolute_url,
+          sourceUrl: job.absolute_url,
+          postedAt: job.updated_at,
+          locationText: location || "Remote",
+          remote: true,
+          remoteScope: classifyRemoteScope(`${location} ${description}`),
+          roleFamily: classifyRoleFamily(job.name, description),
+          tags: []
+        }];
+      });
+    }
+  };
+}
+
+export function leverSource(boardKey: string): JobSource {
+  return {
+    name: `lever:${boardKey}`,
+    async fetchJobs(): Promise<NormalizedJob[]> {
+      const response = await fetch(
+        `https://api.lever.co/v0/postings/${encodeURIComponent(boardKey)}?mode=json`,
+        { headers: { "user-agent": "RemoteJobOS/0.1 (+https://github.com/emmy16-glitch/RemoteJobOS)" } }
+      );
+      if (!response.ok) throw new Error(`Lever ${boardKey} returned ${response.status}`);
+      const jobs = (await response.json()) as Array<{
+        id: string;
+        text: string;
+        hostedUrl: string;
+        applyUrl?: string;
+        descriptionPlain?: string;
+        description?: string;
+        workplaceType?: string;
+        categories?: { location?: string; team?: string; commitment?: string };
+      }>;
+
+      return jobs.flatMap((job) => {
+        const description = job.descriptionPlain ?? textOnly(job.description ?? "");
+        const location = job.categories?.location ?? "";
+        const remote = job.workplaceType?.toLowerCase() === "remote" ||
+          looksRemote(`${job.text} ${location} ${description}`);
+        if (!remote) return [];
+        return [{
+          source: `lever:${boardKey}`,
+          externalId: job.id,
+          title: job.text,
+          company: boardKey,
+          description,
+          applyUrl: job.applyUrl ?? job.hostedUrl,
+          sourceUrl: job.hostedUrl,
+          locationText: location || "Remote",
+          remote: true,
+          remoteScope: classifyRemoteScope(`${location} ${description}`),
+          roleFamily: classifyRoleFamily(job.text, description),
+          tags: [job.categories?.team, job.categories?.commitment].filter((x): x is string => Boolean(x))
+        }];
+      });
+    }
+  };
+}
+
+export function ashbySource(boardKey: string): JobSource {
+  return {
+    name: `ashby:${boardKey}`,
+    async fetchJobs(): Promise<NormalizedJob[]> {
+      const response = await fetch(
+        `https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(boardKey)}`,
+        { headers: { "user-agent": "RemoteJobOS/0.1 (+https://github.com/emmy16-glitch/RemoteJobOS)" } }
+      );
+      if (!response.ok) throw new Error(`Ashby ${boardKey} returned ${response.status}`);
+      const payload = (await response.json()) as {
+        jobs?: Array<{
+          id: string;
+          title: string;
+          location?: string;
+          descriptionPlain?: string;
+          descriptionHtml?: string;
+          jobUrl?: string;
+          applyUrl?: string;
+          isRemote?: boolean;
+          publishedAt?: string;
+          department?: string;
+          employmentType?: string;
+        }>;
+      };
+
+      return (payload.jobs ?? []).flatMap((job) => {
+        const description = job.descriptionPlain ?? textOnly(job.descriptionHtml ?? "");
+        const location = job.location ?? "";
+        const remote = Boolean(job.isRemote) || looksRemote(`${job.title} ${location} ${description}`);
+        if (!remote || !(job.applyUrl || job.jobUrl)) return [];
+        return [{
+          source: `ashby:${boardKey}`,
+          externalId: job.id,
+          title: job.title,
+          company: boardKey,
+          description,
+          applyUrl: job.applyUrl ?? job.jobUrl!,
+          sourceUrl: job.jobUrl ?? job.applyUrl,
+          postedAt: job.publishedAt,
+          locationText: location || "Remote",
+          remote: true,
+          remoteScope: classifyRemoteScope(`${location} ${description}`),
+          roleFamily: classifyRoleFamily(job.title, description),
+          tags: [job.department, job.employmentType].filter((x): x is string => Boolean(x))
+        }];
+      });
+    }
+  };
+}
+
+export function sourceFromBoard(board: AtsBoard): JobSource {
+  if (board.provider === "greenhouse") return greenhouseSource(board.boardKey);
+  if (board.provider === "lever") return leverSource(board.boardKey);
+  return ashbySource(board.boardKey);
+}
