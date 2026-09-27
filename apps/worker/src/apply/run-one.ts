@@ -2,6 +2,7 @@ import { createDefaultAdapterRegistry } from "./default-adapters.js";
 import { runApplicationPipeline, type PipelineOutcome } from "./engine.js";
 import { SupabaseApplicationStore } from "./store.js";
 import { config, hasSupabase } from "../config.js";
+import { renderApplicationResume } from "../resume-renderer.js";
 
 type ApplicationRow = {
   id: string;
@@ -98,6 +99,8 @@ export async function runOneApplication(
     );
   }
 
+  const resumePath = await renderApplicationResume(applicationId);
+
   const workerId =
     process.env.GITHUB_RUN_ID
       ? `github-actions:${process.env.GITHUB_RUN_ID}`
@@ -121,7 +124,8 @@ export async function runOneApplication(
       applicationId,
       jobUrl: job.apply_url,
       workerId,
-      dryRun: !submitEnabled
+      dryRun: !submitEnabled,
+      assets: resumePath ? { resume: resumePath } : undefined
     },
     adapter,
     new SupabaseApplicationStore()
