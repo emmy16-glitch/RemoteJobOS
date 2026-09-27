@@ -8,7 +8,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "discover": "tsx src/index.ts discover",
     "health": "tsx src/index.ts health",
-    "match": "tsx src/index.ts match"
+    "match": "tsx src/index.ts match",
+    "prepare-cvs": "tsx src/index.ts prepare-cvs"
   },
   "dependencies": {
     "@remotejobos/core": "*"
