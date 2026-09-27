@@ -1,6 +1,7 @@
 import { discoverJobs } from "./discover.js";
 import { matchJobs } from "./match.js";
 import { prepareCvPlans } from "./prepare-cvs.js";
+import { runOneApplication, type ApplicationRunMode } from "./apply/run-one.js";
 import { config, hasOptionalEnrichment, hasSupabase } from "./config.js";
 
 const command = process.argv[2] ?? "health";
@@ -11,6 +12,12 @@ if (command === "discover") {
   await matchJobs();
 } else if (command === "prepare-cvs") {
   await prepareCvPlans();
+} else if (command === "apply-one") {
+  const applicationId = process.argv[3] ?? process.env.REMOTEJOBOS_APPLICATION_ID ?? "";
+  const mode = (process.argv[4] ?? process.env.REMOTEJOBOS_APPLICATION_MODE ?? "dry-run") as ApplicationRunMode;
+  const outcome = await runOneApplication(applicationId, mode);
+  console.log(JSON.stringify(outcome, null, 2));
+  if (outcome.status === "failed") process.exitCode = 1;
 } else if (command === "health") {
   console.log(JSON.stringify({
     ok: true,
