@@ -71,3 +71,44 @@ test("marks a strong, eligible remote role as a strong match", () => {
   assert.equal(result.decision, "strong-match");
   assert.ok(result.total >= 75);
 });
+
+
+test("keeps CV plans fact-locked and selects relevant verified facts", async () => {
+  const { planResume, materializeResumeFacts } = await import("../src/resume.ts");
+  const job: NormalizedJob = {
+    source: "test",
+    externalId: "cv-1",
+    title: "Junior Security Analyst",
+    company: "Example",
+    description: "Remote role using Linux, Wireshark, network security and vulnerability analysis.",
+    applyUrl: "https://example.com/apply",
+    remote: true,
+    remoteScope: "global",
+    roleFamily: "cybersecurity",
+    tags: ["linux", "wireshark", "security"]
+  };
+  const facts = [
+    {
+      id: "security-lab",
+      kind: "project" as const,
+      title: "Mobile Security Lab",
+      body: "Used Wireshark and Linux for traffic and security analysis.",
+      keywords: ["wireshark", "linux", "security"],
+      roleFamilies: ["cybersecurity" as const]
+    },
+    {
+      id: "design-project",
+      kind: "project" as const,
+      title: "UI Design",
+      body: "Designed marketing layouts.",
+      keywords: ["figma"],
+      roleFamilies: ["product-technical" as const]
+    }
+  ];
+
+  const plan = planResume(job, facts, 1);
+  assert.equal(plan.selected[0]?.factId, "security-lab");
+  const selected = materializeResumeFacts(plan, facts);
+  assert.equal(selected[0]?.body, facts[0].body);
+  assert.equal(selected.length, 1);
+});
