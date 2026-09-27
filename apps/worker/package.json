@@ -7,8 +7,14 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "discover": "tsx src/index.ts discover",
-    "health": "tsx src/index.ts health"
+    "health": "tsx src/index.ts health",
+    "match": "tsx src/index.ts match"
   },
-  "dependencies": { "@remotejobos/core": "*" },
-  "devDependencies": { "tsx": "^4.20.0", "typescript": "^5.9.0" }
-}
+  "dependencies": {
+    "@remotejobos/core": "*"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}\n
