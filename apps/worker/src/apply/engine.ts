@@ -24,7 +24,7 @@ export async function runApplicationPipeline(
 
     await store.recordStage(attemptId, "plan", "started", { fieldCount: fields.length });
     const verifiedAnswers = await store.getVerifiedAnswers(context.applicationId);
-    const plan = buildDeterministicFillPlan(fields, verifiedAnswers);
+    const plan = buildDeterministicFillPlan(fields, verifiedAnswers, Object.keys(assets));
 
     const reviews = plan.filter((entry) => entry.action.type === "human-review");
     if (reviews.length) {
