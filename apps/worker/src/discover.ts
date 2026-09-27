@@ -1,5 +1,5 @@
 import { remotiveSource } from "./sources/remotive.js";\nimport { remoteOkSource } from "./sources/remoteok.js";\nimport { arbeitnowSource } from "./sources/arbeitnow.js";
-import { persistJobs } from "./persist.js";
+import { persistJobs } from "./persist.js";\nimport { loadRegisteredAtsSources } from "./source-registry.js";
 
 const sources = [remotiveSource, remoteOkSource, arbeitnowSource];
 
