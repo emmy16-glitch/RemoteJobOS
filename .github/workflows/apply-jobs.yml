@@ -1,0 +1,29 @@
+name: Application worker
+
+on:
+  workflow_dispatch:
+    inputs:
+      application_id:
+        description: "Application UUID to process"
+        required: true
+        type: string
+      mode:
+        description: "Safety mode"
+        required: true
+        default: "dry-run"
+        type: choice
+        options: [dry-run, review]
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Application automation safety gate
+        run: |
+          echo "Application: ${{ inputs.application_id }}"
+          echo "Mode: ${{ inputs.mode }}"
+          echo "Browser auto-submit adapters are intentionally disabled in foundation V1."
+          echo "Only dry-run/review execution is permitted until site adapters and field verification are tested."
