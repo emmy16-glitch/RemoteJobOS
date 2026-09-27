@@ -1,12 +1,13 @@
 import { remotiveSource } from "./sources/remotive.js";
 import { remoteOkSource } from "./sources/remoteok.js";
 import { arbeitnowSource } from "./sources/arbeitnow.js";
+import { himalayasSource } from "./sources/himalayas.js";
 import { persistJobs } from "./persist.js";
 import { loadRegisteredAtsSources } from "./source-registry.js";
 import { recordSourceRun, sourceAvailable } from "./source-health.js";
 import type { JobSource } from "./sources/types.js";
 
-const builtInSources: JobSource[] = [remotiveSource, remoteOkSource, arbeitnowSource];
+const builtInSources: JobSource[] = [remotiveSource, remoteOkSource, arbeitnowSource, himalayasSource];
 
 async function getSources(): Promise<JobSource[]> {
   const registered = await loadRegisteredAtsSources().catch((error) => {
@@ -25,9 +26,9 @@ export async function discoverJobs() {
   const sources = await getSources();
 
   for (const source of sources) {
-    if (!(await sourceAvailable(source.name))) {
+    if (!(await sourceAvailable(source.name, source.minimumIntervalMinutes ?? 0))) {
       skipped += 1;
-      console.warn(`[discover] ${source.name}: circuit open, skipping this run`);
+      console.warn(`[discover] ${source.name}: unavailable by circuit/cadence policy, skipping this run`);
       continue;
     }
 
