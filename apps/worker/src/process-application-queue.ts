@@ -73,8 +73,14 @@ export async function processApplicationReviewQueue(maxTasks = 3): Promise<numbe
       }
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
-      await finishTask(task, false, reason, 900).catch(() => undefined);
-      console.error(`[review-queue] task ${task.id} failed:`, reason);
+
+      if (reason.startsWith("No supported application adapter")) {
+        await finishTask(task, true).catch(() => undefined);
+        console.log(`[review-queue] unsupported ATS moved to human review: ${task.id}`);
+      } else {
+        await finishTask(task, false, reason, 900).catch(() => undefined);
+        console.error(`[review-queue] task ${task.id} failed:`, reason);
+      }
     }
 
     processed += 1;
