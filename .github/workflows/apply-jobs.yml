@@ -12,18 +12,43 @@ on:
         required: true
         default: "dry-run"
         type: choice
-        options: [dry-run, review]
+        options:
+          - dry-run
+          - review
 
 permissions:
   contents: read
 
+concurrency:
+  group: application-${{ inputs.application_id }}
+  cancel-in-progress: false
+
 jobs:
-  guard:
+  apply:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      REMOTEJOBOS_APPLICATION_ID: ${{ inputs.application_id }}
+      REMOTEJOBOS_APPLICATION_MODE: ${{ inputs.mode }}
+      REMOTEJOBOS_ALLOW_SUBMIT: "false"
+      ENRICHMENT_PROVIDER: none
     steps:
-      - name: Application automation safety gate
-        run: |
-          echo "Application: ${{ inputs.application_id }}"
-          echo "Mode: ${{ inputs.mode }}"
-          echo "Browser auto-submit adapters are intentionally disabled in foundation V1."
-          echo "Only dry-run/review execution is permitted until site adapters and field verification are tested."
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Scan, fill and verify application without submitting
+        run: npm run apply-one --workspace @remotejobos/worker -- "${{ inputs.application_id }}" "${{ inputs.mode }}"
+      - name: Upload verification screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: application-${{ inputs.application_id }}-evidence
+          path: artifacts/screenshots/
+          if-no-files-found: ignore
+          retention-days: 7
