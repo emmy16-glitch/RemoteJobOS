@@ -23,6 +23,12 @@ export type FieldKind =
   | "custom"
   | "unknown";
 
+export interface FieldLocator {
+  strategy: "id" | "name" | "index";
+  value: string;
+  tag: "input" | "textarea" | "select" | "button" | "other";
+}
+
 export interface ApplicationField {
   key: string;
   label: string;
@@ -30,6 +36,7 @@ export interface ApplicationField {
   required: boolean;
   options?: string[];
   sensitive?: boolean;
+  locator?: FieldLocator;
 }
 
 export type PlanAction =
