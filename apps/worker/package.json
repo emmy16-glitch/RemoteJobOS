@@ -11,8 +11,8 @@
     "match": "tsx src/index.ts match",
     "prepare-cvs": "tsx src/index.ts prepare-cvs",
     "apply-one": "tsx src/index.ts apply-one",
-    "promote-applications": "tsx src/index.ts promote-applications",
-    "process-application-reviews": "tsx src/index.ts process-application-reviews"
+    "sync-applications": "tsx src/index.ts sync-applications",
+    "process-application-tasks": "tsx src/index.ts process-application-tasks"
   },
   "dependencies": {
     "@remotejobos/core": "*",
