@@ -9,6 +9,7 @@ export interface ApplicationContext {
   jobUrl: string;
   workerId: string;
   dryRun: boolean;
+  assets?: Record<string, string>;
 }
 
 export interface SubmitResult {
@@ -32,10 +33,12 @@ export interface ApplicationAdapter {
   submit(context: ApplicationContext): Promise<SubmitResult>;
   confirm(context: ApplicationContext): Promise<ConfirmationResult>;
   screenshot?(context: ApplicationContext, label: string): Promise<string | undefined>;
+  close?(): Promise<void>;
 }
 
 export interface ApplicationStore {
   getVerifiedAnswers(applicationId: string): Promise<Record<string, string>>;
+  getAssets(applicationId: string): Promise<Record<string, string>>;
   canSubmit(applicationId: string): Promise<{ allowed: boolean; reason: string }>;
   startAttempt(applicationId: string, workerId: string): Promise<string>;
   recordStage(
