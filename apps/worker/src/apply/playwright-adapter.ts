@@ -341,6 +341,15 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
           continue;
         }
 
+        if (entry.action.type !== "fill") {
+          issues.push({
+            fieldKey: entry.field.key,
+            code: "unverified",
+            message: "Verification reached an unsupported plan action"
+          });
+          continue;
+        }
+
         const expected = entry.action.value;
 
         if (entry.field.kind === "checkbox") {
