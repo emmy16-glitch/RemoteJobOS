@@ -1,7 +1,7 @@
-import { remotiveSource } from "./sources/remotive.js";
+import { remotiveSource } from "./sources/remotive.js";\nimport { remoteOkSource } from "./sources/remoteok.js";\nimport { arbeitnowSource } from "./sources/arbeitnow.js";
 import { persistJobs } from "./persist.js";
 
-const sources = [remotiveSource];
+const sources = [remotiveSource, remoteOkSource, arbeitnowSource];
 
 export async function discoverJobs() {
   let total = 0;
