@@ -1,0 +1,48 @@
+name: Review application queue
+
+on:
+  schedule:
+    - cron: "23 * * * *"
+  workflow_dispatch:
+    inputs:
+      max_tasks:
+        description: "Maximum application reviews for this run"
+        required: false
+        default: "3"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: application-review-queue
+  cancel-in-progress: false
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      REMOTEJOBOS_MAX_REVIEW_TASKS: ${{ inputs.max_tasks || '3' }}
+      REMOTEJOBOS_ALLOW_SUBMIT: "false"
+      ENRICHMENT_PROVIDER: none
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Process leased application review tasks
+        run: npm run worker:process-application-reviews
+      - name: Upload non-sensitive browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: application-review-evidence-${{ github.run_id }}
+          path: artifacts/screenshots/
+          if-no-files-found: ignore
+          retention-days: 7
