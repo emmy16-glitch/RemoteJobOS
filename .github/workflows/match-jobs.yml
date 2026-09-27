@@ -27,4 +27,6 @@ jobs:
           node-version: 22
       - run: npm install
       - name: Score unprocessed remote jobs deterministically
-        run: npm run worker:match\n      - name: Prepare verified-fact CV plans\n        run: npm run worker:prepare-cvs\n
+        run: npm run worker:match
+      - name: Prepare verified-fact CV plans
+        run: npm run worker:prepare-cvs
