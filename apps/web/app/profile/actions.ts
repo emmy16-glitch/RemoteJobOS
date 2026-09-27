@@ -157,6 +157,7 @@ export async function saveCareerProfile(formData: FormData) {
     skills: list(text(formData, "skills")),
     roleFamilies: selectedRoles,
     maxSeniority,
+    country: text(formData, "country"),
     blockedRequirements: list(text(formData, "blockedRequirements")),
     verifiedAnswers,
     facts,
