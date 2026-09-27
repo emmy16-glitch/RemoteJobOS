@@ -9,10 +9,12 @@
     "discover": "tsx src/index.ts discover",
     "health": "tsx src/index.ts health",
     "match": "tsx src/index.ts match",
-    "prepare-cvs": "tsx src/index.ts prepare-cvs"
+    "prepare-cvs": "tsx src/index.ts prepare-cvs",
+    "apply-one": "tsx src/index.ts apply-one"
   },
   "dependencies": {
-    "@remotejobos/core": "*"
+    "@remotejobos/core": "*",
+    "playwright": "^1.63.0"
   },
   "devDependencies": {
     "tsx": "^4.20.0",
