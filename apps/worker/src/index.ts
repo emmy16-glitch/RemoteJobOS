@@ -1,4 +1,4 @@
-import { discoverJobs } from "./discover.js";
+import { discoverJobs } from "./discover.js";\nimport { matchJobs } from "./match.js";
 import { config, hasSupabase } from "./config.js";
 
 const command = process.argv[2] ?? "health";
