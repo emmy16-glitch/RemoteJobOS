@@ -1,8 +1,7 @@
 import { discoverJobs } from "./discover.js";
 import { matchJobs } from "./match.js";
 import { prepareCvPlans } from "./prepare-cvs.js";
-import { syncApplications } from "./sync-applications.js";
-import { processApplicationTasks } from "./process-application-tasks.js";
+import { syncApplications, processApplicationTasks } from "./application-queue.js";
 import { runOneApplication, type ApplicationRunMode } from "./apply/run-one.js";
 import { config, hasOptionalEnrichment, hasSupabase } from "./config.js";
 
