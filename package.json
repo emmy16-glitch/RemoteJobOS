@@ -12,7 +12,8 @@
     "typecheck": "npm run build --workspace @remotejobos/core && npm run typecheck --workspace @remotejobos/worker && npm run typecheck --workspace @remotejobos/web",
     "worker:discover": "npm run discover --workspace @remotejobos/worker",
     "worker:health": "npm run health --workspace @remotejobos/worker",
-    "worker:match": "npm run match --workspace @remotejobos/worker"
+    "worker:match": "npm run match --workspace @remotejobos/worker",
+    "test": "npm run test --workspace @remotejobos/core"
   },
   "engines": {
     "node": ">=22"
