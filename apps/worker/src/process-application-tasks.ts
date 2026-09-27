@@ -1,5 +1,5 @@
 import { claimTask, finishTask } from "./task-queue.js";
-import { runApplication } from "./run-application.js";
+import { runOneApplication } from "./apply/run-one.js";
 
 export async function processOneApplicationTask(): Promise<boolean> {
   const workerId = process.env.GITHUB_RUN_ID
@@ -23,7 +23,7 @@ export async function processOneApplicationTask(): Promise<boolean> {
   }
 
   try {
-    const outcome = await runApplication(applicationId, "dry-run");
+    const outcome = await runOneApplication(applicationId, "dry-run");
     const successfulTask = outcome.status !== "failed";
 
     await finishTask(
