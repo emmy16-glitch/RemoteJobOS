@@ -16,7 +16,8 @@ export async function runApplicationPipeline(
   const attemptId = await store.startAttempt(context.applicationId, context.workerId);
 
   try {
-    const assets = await store.getAssets(context.applicationId);
+    const storedAssets = await store.getAssets(context.applicationId);
+    const assets = { ...storedAssets, ...(context.assets ?? {}) };
     const executionContext: ApplicationContext = { ...context, assets };
 
     await store.recordStage(attemptId, "scan", "started");
