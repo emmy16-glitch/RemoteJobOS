@@ -692,6 +692,39 @@ function workerId(): string {
     : `worker:${process.pid}`;
 }
 
+export async function processAutoSubmissionTasks(maxTasks = 3): Promise<number> {
+  if (!hasSupabase()) {
+    console.log("[application-queue] Supabase is not configured; skipping auto-submit processor.");
+    return 0;
+  }
+  if ((process.env.REMOTEJOBOS_ALLOW_SUBMIT ?? "").toLowerCase() !== "true") {
+    throw new Error("Live submission is disabled");
+  }
+
+  const limit = Math.max(1, Math.min(10, maxTasks));
+  const id = workerId();
+  let processed = 0;
+
+  while (processed < limit) {
+    const task = await claimTask(id, [AUTO_SUBMIT_TASK_TYPE], 1800);
+    if (!task) break;
+
+    try {
+      const applicationId = applicationIdFromTask(task);
+      await processSubmitTask(task, applicationId);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      await finishTask(task, false, reason, 1800).catch(() => undefined);
+      console.error(`[application-queue] auto-submit task ${task.id} failed:`, reason);
+    }
+
+    processed += 1;
+  }
+
+  console.log(`[application-queue] auto-submit processed=${processed}`);
+  return processed;
+}
+
 export async function processApprovedSubmission(approvalId: string): Promise<number> {
   if (!hasSupabase()) throw new Error("Supabase is required for approved submission");
   if ((process.env.REMOTEJOBOS_ALLOW_SUBMIT ?? "").toLowerCase() !== "true") {
