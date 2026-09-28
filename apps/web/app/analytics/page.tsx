@@ -45,7 +45,7 @@ export default async function AnalyticsPage() {
   }
 
   const supabase = createAdminSupabaseClient();
-  const [appResult, matchResult, exceptionResult] = await Promise.all([
+  const [appResult, matchResult] = await Promise.all([
     supabase
       .from("applications")
       .select("id,status,submitted_at,created_at")
@@ -53,28 +53,26 @@ export default async function AnalyticsPage() {
     supabase
       .from("job_matches")
       .select("decision,score")
-      .eq("profile_id", profile.id),
-    supabase
-      .from("application_exceptions")
-      .select("status,exception_type")
-      .in(
-        "application_id",
-        (
-          await supabase
-            .from("applications")
-            .select("id")
-            .eq("profile_id", profile.id)
-        ).data?.map((row) => row.id) ?? []
-      )
+      .eq("profile_id", profile.id)
   ]);
 
   if (appResult.error) throw new Error(appResult.error.message);
   if (matchResult.error) throw new Error(matchResult.error.message);
-  if (exceptionResult.error) throw new Error(exceptionResult.error.message);
 
   const applications = (appResult.data ?? []) as ApplicationRow[];
   const matches = (matchResult.data ?? []) as MatchRow[];
-  const exceptions = (exceptionResult.data ?? []) as ExceptionRow[];
+  const applicationIds = applications.map((row) => row.id);
+
+  let exceptions: ExceptionRow[] = [];
+  if (applicationIds.length) {
+    const exceptionResult = await supabase
+      .from("application_exceptions")
+      .select("status,exception_type")
+      .in("application_id", applicationIds);
+
+    if (exceptionResult.error) throw new Error(exceptionResult.error.message);
+    exceptions = (exceptionResult.data ?? []) as ExceptionRow[];
+  }
 
   const applied = applications.filter((row) => row.status === "applied" || row.submitted_at).length;
   const interviews = applications.filter((row) => row.status === "interview").length;
