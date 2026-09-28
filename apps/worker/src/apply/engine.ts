@@ -17,6 +17,7 @@ export type PipelineOutcome =
       reason: string;
       retryable: boolean;
       sideEffectStarted: boolean;
+      submitAttempt?: number;
     };
 
 function sleep(ms: number): Promise<void> {
@@ -32,6 +33,7 @@ export async function runApplicationPipeline(
   let fenced = false;
   let submitCallStarted = false;
   let sideEffectStarted = false;
+  let reservedSubmitAttempt: number | null = null;
 
   try {
     const storedAssets = await store.getAssets(context.applicationId);
@@ -95,7 +97,7 @@ export async function runApplicationPipeline(
       return { status: "dry-run-verified", attemptId };
     }
 
-    const reservedSubmitAttempt = context.beforeSubmitAttempt
+    reservedSubmitAttempt = context.beforeSubmitAttempt
       ? await context.beforeSubmitAttempt()
       : 1;
 
@@ -129,7 +131,8 @@ export async function runApplicationPipeline(
         attemptId,
         reason,
         retryable: preparation.retryable,
-        sideEffectStarted: false
+        sideEffectStarted: false,
+        submitAttempt: reservedSubmitAttempt ?? undefined
       };
     }
 
@@ -173,7 +176,8 @@ export async function runApplicationPipeline(
         attemptId,
         reason: submission.message ?? "Submit outcome could not be confirmed",
         retryable: submission.retryable && fenceReleased,
-        sideEffectStarted: submission.sideEffectStarted
+        sideEffectStarted: submission.sideEffectStarted,
+        submitAttempt: reservedSubmitAttempt ?? undefined
       };
     }
 
@@ -211,7 +215,8 @@ export async function runApplicationPipeline(
         reason:
           "Submit side effect started but confirmation could not be verified after repeated checks; automatic re-submit is blocked",
         retryable: false,
-        sideEffectStarted: true
+        sideEffectStarted: true,
+        submitAttempt: reservedSubmitAttempt ?? undefined
       };
     }
 
@@ -253,7 +258,8 @@ export async function runApplicationPipeline(
       attemptId,
       reason,
       retryable,
-      sideEffectStarted
+      sideEffectStarted,
+      submitAttempt: reservedSubmitAttempt ?? undefined
     };
   } finally {
     await adapter.close?.().catch(() => undefined);
