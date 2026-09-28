@@ -345,6 +345,15 @@ async function processSubmitTask(task: ClaimedTask, applicationId: string): Prom
     return;
   }
   if (run.status === "blocked" && run.recovery_strategy === "manual-reconcile") {
+    await createApplicationException({
+      applicationId,
+      runId: run.id,
+      type: "submit-uncertain",
+      title: "Submission outcome is uncertain",
+      detail: "RemoteJobOS detected that a submit side effect may have started, but it could not verify the final confirmation. It will not click Submit again until you review it.",
+      payload: { approvalId, recoveryStrategy: run.recovery_strategy },
+      dedupeKey: `submit-uncertain:${applicationId}:${run.id}`
+    }).catch(() => undefined);
     await finishTask(task, true);
     return;
   }
@@ -372,22 +381,51 @@ async function processSubmitTask(task: ClaimedTask, applicationId: string): Prom
 
       if (verification.verified && verification.terminal === "submitted") {
         await completeHarnessRun(run.id, verification, approvalId);
+        await notifySubmitted(applicationId).catch(() => undefined);
         await finishTask(task, true);
         return;
       }
 
-      if (
-        verification.terminal === "needs-review" ||
-        verification.terminal === "blocked"
-      ) {
+      if (outcome.status === "needs-review") {
+        await createFieldExceptions({
+          applicationId,
+          runId: run.id,
+          attemptId: outcome.attemptId,
+          fields: outcome.fields
+        });
         await blockHarnessRun(run.id, applicationId, verification.reason, {
           verification,
           outcome,
           approvalId
         });
-        await updateApplication(applicationId, {
-          status: "ready-for-review",
-          next_action: verification.reason
+        await finishTask(task, true);
+        return;
+      }
+
+      if (verification.terminal === "blocked") {
+        const uncertain =
+          verification.evidence?.recovery === "manual-reconcile" ||
+          (
+            outcome.status === "failed" &&
+            outcome.sideEffectStarted
+          );
+
+        await createApplicationException({
+          applicationId,
+          runId: run.id,
+          type: uncertain ? "submit-uncertain" : "verification-failed",
+          title: uncertain
+            ? "Submission outcome is uncertain"
+            : "Submission needs review",
+          detail: verification.reason,
+          payload: { verification, outcome, approvalId },
+          dedupeKey: `${uncertain ? "submit-uncertain" : "submit-blocked"}:${applicationId}:${outcome.attemptId}`
+        });
+
+        await blockHarnessRun(run.id, applicationId, verification.reason, {
+          verification,
+          outcome,
+          approvalId
         });
         await finishTask(task, true);
         return;
@@ -430,15 +468,22 @@ async function processSubmitTask(task: ClaimedTask, applicationId: string): Prom
         )
       ) {
         const reason =
-          `Safe submit retry limit reached after ${DEFAULT_SAFE_SUBMIT_RETRIES} attempts; human review required.`;
+          `Safe submit retry limit reached after ${DEFAULT_SAFE_SUBMIT_RETRIES} attempts. RemoteJobOS needs you to inspect the job before another attempt.`;
+
+        await createApplicationException({
+          applicationId,
+          runId: run.id,
+          type: "retry-exhausted",
+          title: "Automatic submit retries were exhausted",
+          detail: reason,
+          payload: { verification, outcome, approvalId },
+          dedupeKey: `retry-exhausted:${applicationId}:${run.id}`
+        });
+
         await blockHarnessRun(run.id, applicationId, reason, {
           verification,
           outcome,
           approvalId
-        });
-        await updateApplication(applicationId, {
-          status: "ready-for-review",
-          next_action: reason
         });
         await finishTask(task, true);
         return;
@@ -452,10 +497,15 @@ async function processSubmitTask(task: ClaimedTask, applicationId: string): Prom
       );
 
       if (runStatus === "blocked") {
-        await updateApplication(applicationId, {
-          status: "ready-for-review",
-          next_action: verification.reason
-        });
+        await createApplicationException({
+          applicationId,
+          runId: run.id,
+          type: "submit-uncertain",
+          title: "Submission needs reconciliation",
+          detail: verification.reason,
+          payload: { verification, outcome, approvalId },
+          dedupeKey: `submit-reconcile:${applicationId}:${run.id}`
+        }).catch(() => undefined);
         await finishTask(task, true);
       } else {
         await finishTask(task, false, verification.reason, 1800);
@@ -464,11 +514,16 @@ async function processSubmitTask(task: ClaimedTask, applicationId: string): Prom
     }
 
     const reason = "Submit retry loop ended without a terminal result";
-    await blockHarnessRun(run.id, applicationId, reason, { approvalId });
-    await updateApplication(applicationId, {
-      status: "ready-for-review",
-      next_action: reason
+    await createApplicationException({
+      applicationId,
+      runId: run.id,
+      type: "other",
+      title: "Submission worker stopped unexpectedly",
+      detail: reason,
+      payload: { approvalId },
+      dedupeKey: `submit-loop-ended:${applicationId}:${run.id}`
     });
+    await blockHarnessRun(run.id, applicationId, reason, { approvalId });
     await finishTask(task, true);
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
@@ -480,9 +535,14 @@ async function processSubmitTask(task: ClaimedTask, applicationId: string): Prom
     ).catch(() => "failed" as const);
 
     if (runStatus === "blocked") {
-      await updateApplication(applicationId, {
-        status: "ready-for-review",
-        next_action: reason
+      await createApplicationException({
+        applicationId,
+        runId: run.id,
+        type: "submit-uncertain",
+        title: "Submission worker needs review",
+        detail: reason,
+        payload: { approvalId, taskType: task.task_type },
+        dedupeKey: `submit-error:${applicationId}:${run.id}`
       }).catch(() => undefined);
       await finishTask(task, true).catch(() => undefined);
     } else {
