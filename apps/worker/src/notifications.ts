@@ -72,3 +72,19 @@ export async function queueNotification(args: {
     })
   });
 }
+
+export async function jobLabelForApplication(
+  applicationId: string
+): Promise<{ title: string; company: string }> {
+  const rows = await request<Array<{
+    jobs: { title: string; company: string } | Array<{ title: string; company: string }> | null;
+  }>>(
+    `applications?select=jobs(title,company)&id=eq.${encodeURIComponent(applicationId)}&limit=1`
+  );
+  const relation = rows[0]?.jobs;
+  const job = Array.isArray(relation) ? relation[0] : relation;
+  return {
+    title: job?.title ?? "job application",
+    company: job?.company ?? "Unknown company"
+  };
+}
