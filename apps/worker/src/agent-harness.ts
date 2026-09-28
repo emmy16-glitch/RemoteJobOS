@@ -228,7 +228,7 @@ export async function startOrResumeApplicationRun(args: {
       mode: args.mode,
       status: "running",
       phase: "assemble",
-      step_limit: args.stepLimit ?? 24,
+      step_limit: args.stepLimit ?? 40,
       active_tool_families: [],
       checkpoint: {
         applicationId: args.applicationId,
@@ -339,7 +339,7 @@ function pipelinePhase(stage: string): HarnessRunPhase {
   if (stage === "fill") return "fill";
   if (stage === "verify") return "verify";
   if (stage === "fence") return "fence";
-  if (stage === "submit") return "submit";
+  if (stage === "submit-preflight" || stage === "submit") return "submit";
   if (stage === "confirm") return "confirm";
   return "report";
 }
@@ -449,11 +449,24 @@ export async function verifyApplicationOutcome(
     };
   }
 
+  const recovery = recoveryDisposition({
+    submissionFencedAt: application.submission_fenced_at,
+    submittedAt: application.submitted_at,
+    confirmationVerifiedAt: application.confirmation_verified_at
+  });
+
   return {
     verified: false,
     terminal: "failed",
     reason: outcome.reason,
-    evidence: { attemptId: outcome.attemptId, attemptStage: attempt?.stage, error: attempt?.error }
+    evidence: {
+      attemptId: outcome.attemptId,
+      attemptStage: attempt?.stage,
+      error: attempt?.error,
+      retryable: outcome.status === "failed" ? outcome.retryable : false,
+      sideEffectStarted: outcome.status === "failed" ? outcome.sideEffectStarted : false,
+      recovery
+    }
   };
 }
 
@@ -591,6 +604,16 @@ export async function decideHarnessApproval(
   );
   const approval = rows[0];
   if (!approval) throw new Error(`Approval not found: ${approvalId}`);
+
+  if (approval.status === "approved" && decision === "approved") {
+    return approval;
+  }
+  if (approval.status === "denied" && decision === "denied") {
+    return approval;
+  }
+  if (approval.status === "executed" && decision === "approved") {
+    return approval;
+  }
   if (approval.status !== "pending") {
     throw new Error(`Approval is already ${approval.status}`);
   }
@@ -667,7 +690,7 @@ export async function decideHarnessApproval(
       },
       status: "pending",
       priority: 40,
-      max_attempts: 2,
+      max_attempts: 3,
       idempotency_key: `application-submit:${updated.run_id}:${approvalId}`
     })
   });
@@ -681,6 +704,17 @@ export async function decideHarnessApproval(
   });
 
   return updated;
+}
+
+export async function getHarnessApproval(
+  approvalId: string
+): Promise<ApprovalRow> {
+  const rows = await request<ApprovalRow[]>(
+    `agent_approvals?select=*&id=eq.${encodeURIComponent(approvalId)}&limit=1`
+  );
+  const approval = rows[0];
+  if (!approval) throw new Error(`Approval not found: ${approvalId}`);
+  return approval;
 }
 
 export async function requireApprovedSubmission(
