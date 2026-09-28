@@ -69,6 +69,30 @@ export function toolFamiliesForPhase(
   return [...phaseTools[phase]];
 }
 
+export function toolFamilyAllowed(
+  phase: HarnessRunPhase,
+  family: HarnessToolFamily
+): boolean {
+  return phaseTools[phase].includes(family);
+}
+
+export function assertToolFamilyAllowed(
+  phase: HarnessRunPhase,
+  family: HarnessToolFamily
+): void {
+  if (!toolFamilyAllowed(phase, family)) {
+    throw new Error(`Harness policy denied ${family} capability during ${phase} phase`);
+  }
+}
+
+export const DEFAULT_SAFE_SUBMIT_RETRIES = 3;
+export const DEFAULT_CONFIRMATION_CHECKS = 3;
+
+export function retryDelayMs(attempt: number): number {
+  const bounded = Math.max(1, Math.min(5, Math.floor(attempt)));
+  return Math.min(8_000, 1_000 * (2 ** (bounded - 1)));
+}
+
 export function remainingHarnessSteps(budget: HarnessBudget): number {
   return Math.max(0, budget.limit - budget.used);
 }
