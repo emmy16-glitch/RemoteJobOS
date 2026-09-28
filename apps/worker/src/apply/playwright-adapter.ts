@@ -403,14 +403,14 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
     };
   }
 
-  async submit(context: ApplicationContext): Promise<SubmitResult> {
+  async prepareSubmit(context: ApplicationContext) {
     const page = await this.ensurePage(context);
 
     if (await page.locator('iframe[src*="recaptcha"], iframe[src*="hcaptcha"], [data-sitekey]').count()) {
       return {
-        submitted: false,
-        url: page.url(),
-        message: "CAPTCHA detected; RemoteJobOS will not bypass it"
+        ready: false,
+        retryable: false,
+        reason: "CAPTCHA detected; RemoteJobOS will not bypass it"
       };
     }
 
@@ -421,16 +421,73 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
 
     if (!(await submit.count()) || !(await submit.isVisible().catch(() => false))) {
       return {
-        submitted: false,
-        url: page.url(),
-        message: "No unambiguous visible submit control was found"
+        ready: false,
+        retryable: true,
+        reason: "No unambiguous visible submit control was found"
       };
     }
 
-    await submit.click();
+    if (await submit.isDisabled().catch(() => false)) {
+      return {
+        ready: false,
+        retryable: true,
+        reason: "Submit control is present but temporarily disabled"
+      };
+    }
+
+    return { ready: true, retryable: false };
+  }
+
+  async submit(context: ApplicationContext): Promise<SubmitResult> {
+    const page = await this.ensurePage(context);
+
+    let submit = page.locator('button[type="submit"]:visible, input[type="submit"]:visible').first();
+    if (!(await submit.count())) {
+      submit = page.getByRole("button", { name: /submit application|submit/i }).first();
+    }
+
+    if (!(await submit.count()) || !(await submit.isVisible().catch(() => false))) {
+      return {
+        submitted: false,
+        sideEffectStarted: false,
+        retryable: true,
+        url: page.url(),
+        message: "Submit control disappeared before the click"
+      };
+    }
+
+    if (await submit.isDisabled().catch(() => false)) {
+      return {
+        submitted: false,
+        sideEffectStarted: false,
+        retryable: true,
+        url: page.url(),
+        message: "Submit control became disabled before the click"
+      };
+    }
+
+    try {
+      await submit.click();
+    } catch (error) {
+      return {
+        submitted: false,
+        sideEffectStarted: true,
+        retryable: false,
+        url: page.url(),
+        message:
+          "Submit click returned an error after dispatch may have started: " +
+          (error instanceof Error ? error.message : String(error))
+      };
+    }
+
     await page.waitForLoadState("domcontentloaded", { timeout: 8_000 }).catch(() => undefined);
     await page.waitForTimeout(1_000);
-    return { submitted: true, url: page.url() };
+    return {
+      submitted: true,
+      sideEffectStarted: true,
+      retryable: false,
+      url: page.url()
+    };
   }
 
   async confirm(context: ApplicationContext): Promise<ConfirmationResult> {
