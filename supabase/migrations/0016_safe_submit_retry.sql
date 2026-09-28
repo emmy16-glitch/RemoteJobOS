@@ -195,3 +195,10 @@ revoke execute on function public.can_submit_application(uuid)
   from public, anon, authenticated;
 grant execute on function public.can_submit_application(uuid)
   to service_role;
+
+
+-- Application lifecycle fields are security-sensitive. The browser may read
+-- owner-scoped rows, but only trusted server/worker code may mutate them.
+revoke insert, update, delete on table public.applications from authenticated;
+
+drop policy if exists "owners can update applications" on public.applications;
