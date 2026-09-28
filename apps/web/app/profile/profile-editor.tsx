@@ -486,6 +486,27 @@ export function ProfileEditor({
           </label>
         </div>
 
+        <div className="formGrid two">
+          <label>
+            <span>Application autonomy</span>
+            <select
+              name="autonomyMode"
+              defaultValue={initial.autonomyMode ?? "auto-except"}
+            >
+              <option value="auto-except">
+                Auto-except — apply automatically unless something needs me
+              </option>
+              <option value="review">
+                Review mode — ask before every live submission
+              </option>
+            </select>
+            <small>
+              Auto-except still pauses for missing or sensitive answers, CAPTCHA,
+              unsupported sites, uncertain submission outcomes, and safety blocks.
+            </small>
+          </label>
+        </div>
+
         <label>
           <span>Hard blockers</span>
           <textarea
