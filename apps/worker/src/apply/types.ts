@@ -48,6 +48,7 @@ export interface ApplicationAdapter {
 
 export interface ApplicationStore {
   getVerifiedAnswers(applicationId: string): Promise<Record<string, string>>;
+  getAutoApprovedAnswerKeys(applicationId: string): Promise<string[]>;
   getAssets(applicationId: string): Promise<Record<string, string>>;
   canSubmit(applicationId: string): Promise<{ allowed: boolean; reason: string }>;
   startAttempt(applicationId: string, workerId: string): Promise<string>;
