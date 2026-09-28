@@ -118,6 +118,8 @@ export default async function ApplicationsPage({
           <select name="status" defaultValue={params.status ?? ""}>
             <option value="">All statuses</option>
             <option value="cv-prepared">CV prepared</option>
+            <option value="auto-submit-queued">Auto-submit queued</option>
+            <option value="needs-attention">Needs attention</option>
             <option value="ready-for-review">Ready for review</option>
             <option value="applied">Applied</option>
             <option value="response">Response</option>
@@ -174,6 +176,11 @@ export default async function ApplicationsPage({
                     </div>
                   </dl>
 
+                  {application.status === "needs-attention" ? (
+                    <a className="primaryLink compactLink" href="/exceptions">
+                      Resolve blocker
+                    </a>
+                  ) : null}
                   <a
                     className="externalButton"
                     href={job.apply_url}
