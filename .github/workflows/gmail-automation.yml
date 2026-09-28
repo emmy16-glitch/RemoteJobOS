@@ -1,0 +1,43 @@
+name: Gmail lifecycle and notifications
+
+on:
+  schedule:
+    - cron: "12,42 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: remotejobos-gmail-automation
+  cancel-in-progress: false
+
+jobs:
+  gmail:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      GOOGLE_GMAIL_CLIENT_ID: ${{ secrets.GOOGLE_GMAIL_CLIENT_ID }}
+      GOOGLE_GMAIL_CLIENT_SECRET: ${{ secrets.GOOGLE_GMAIL_CLIENT_SECRET }}
+      GMAIL_TOKEN_ENCRYPTION_KEY: ${{ secrets.GMAIL_TOKEN_ENCRYPTION_KEY }}
+      ENRICHMENT_PROVIDER: none
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Verify required cloud secrets
+        shell: bash
+        run: |
+          test -n "$SUPABASE_URL"
+          test -n "$SUPABASE_SERVICE_ROLE_KEY"
+          test -n "$GOOGLE_GMAIL_CLIENT_ID"
+          test -n "$GOOGLE_GMAIL_CLIENT_SECRET"
+          test -n "$GMAIL_TOKEN_ENCRYPTION_KEY"
+      - name: Sync Gmail lifecycle
+        run: npm run worker:sync-gmail
+      - name: Send RemoteJobOS notifications
+        run: npm run worker:send-notifications -- "50"
