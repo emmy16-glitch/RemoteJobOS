@@ -169,6 +169,9 @@ export default async function Home() {
               <strong>{data.profileName ?? "Your profile"}</strong>
               <span aria-hidden="true">⌄</span>
             </a>
+            <form action={signOut}>
+              <button className="logoutButton" type="submit">Sign out</button>
+            </form>
           </div>
         </header>
 
@@ -450,10 +453,6 @@ export default async function Home() {
             </article>
           </section>
         </div>
-
-        <form action={signOut} className="srOnlySignOut" aria-hidden="true">
-          <button type="submit">Sign out</button>
-        </form>
       </section>
     </main>
   );
