@@ -6,23 +6,37 @@ import { gmailOAuthEnv } from "../../../../lib/gmail/env";
 export async function GET(request: NextRequest) {
   const userId = await authenticatedUserId();
   if (!userId) {
-    return NextResponse.redirect(new URL("/login?next=/inbox", request.url));
+    console.warn("[gmail-connect] no authenticated user");
+    return NextResponse.redirect(new URL("/login?next=/inbox", request.url), 302);
   }
 
   const env = gmailOAuthEnv();
   if (!env.configured) {
+    console.error("[gmail-connect] OAuth environment incomplete", {
+      hasClientId: Boolean(env.clientId),
+      hasClientSecret: Boolean(env.clientSecret),
+      hasEncryptionKey: Boolean(env.encryptionKey),
+      hasRedirectUri: Boolean(env.redirectUri)
+    });
     return NextResponse.redirect(
       new URL(
         "/inbox?error=" +
-          encodeURIComponent("Gmail OAuth environment is not configured yet."),
+          encodeURIComponent("Gmail OAuth environment is incomplete on the live server."),
         request.url
-      )
+      ),
+      302
     );
   }
 
   const state = randomBytes(32).toString("hex");
   const redirectUri =
     env.redirectUri || new URL("/api/gmail/callback", request.url).toString();
+
+  console.info("[gmail-connect] starting OAuth", {
+    userId,
+    redirectUri,
+    requestHost: request.nextUrl.host
+  });
 
   const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   authUrl.searchParams.set("client_id", env.clientId);
@@ -40,7 +54,7 @@ export async function GET(request: NextRequest) {
   authUrl.searchParams.set("include_granted_scopes", "true");
   authUrl.searchParams.set("state", state);
 
-  const response = NextResponse.redirect(authUrl);
+  const response = NextResponse.redirect(authUrl, 302);
   response.cookies.set("remotejobos_gmail_oauth_state", state, {
     httpOnly: true,
     sameSite: "lax",
