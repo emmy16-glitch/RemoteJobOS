@@ -148,6 +148,10 @@ export async function resolveApplicationException(formData: FormData) {
   }
 
   if (action === "answer") {
+    if (!["missing-answer", "sensitive-answer"].includes(exception.exception_type)) {
+      throw new Error("This exception does not accept an application answer");
+    }
+
     const answer = text(formData, "answer");
     const reusePolicy = text(formData, "reusePolicy") || "always";
     if (!answer) throw new Error("Answer is required");
@@ -207,6 +211,10 @@ export async function resolveApplicationException(formData: FormData) {
       });
     }
   } else if (action === "retry") {
+    if (!["submit-uncertain", "retry-exhausted"].includes(exception.exception_type)) {
+      throw new Error("This exception is not eligible for a submit retry");
+    }
+
     if (application.submission_fenced_at && application.last_attempt_id) {
       const { data: released, error: releaseError } = await supabase.rpc(
         "release_submission_fence",
@@ -286,6 +294,10 @@ export async function resolveApplicationException(formData: FormData) {
       .eq("id", application.id);
     if (appError) throw new Error(appError.message);
   } else if (action === "mark-submitted") {
+    if (!["submit-uncertain", "retry-exhausted"].includes(exception.exception_type)) {
+      throw new Error("This exception cannot be manually confirmed as submitted");
+    }
+
     const now = new Date().toISOString();
     const { error: appError } = await supabase
       .from("applications")
