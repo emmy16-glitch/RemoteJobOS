@@ -39,6 +39,10 @@ export interface ApplicationAdapter {
   scan(context: ApplicationContext): Promise<ApplicationField[]>;
   fill(context: ApplicationContext, plan: FillPlanEntry[]): Promise<void>;
   verify(context: ApplicationContext, plan: FillPlanEntry[]): Promise<VerificationReport>;
+  advanceIfNeeded?(context: ApplicationContext): Promise<{
+    advanced: boolean;
+    reason?: string;
+  }>;
   prepareSubmit?(context: ApplicationContext): Promise<SubmitPreparationResult>;
   submit(context: ApplicationContext): Promise<SubmitResult>;
   confirm(context: ApplicationContext): Promise<ConfirmationResult>;
