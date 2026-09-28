@@ -28,17 +28,28 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (text ? JSON.parse(text) : undefined) as T;
 }
 
-async function profileForApplication(applicationId: string): Promise<CareerProfilePayload> {
-  const apps = await request<Array<{ profile_id: string | null }>>(
-    `applications?select=profile_id&id=eq.${encodeURIComponent(applicationId)}&limit=1`
+async function applicationContext(applicationId: string): Promise<{
+  profileId: string | null;
+  answers: Record<string, string>;
+  profile: CareerProfilePayload;
+}> {
+  const apps = await request<Array<{
+    profile_id: string | null;
+    answers: Record<string, string> | null;
+  }>>(
+    `applications?select=profile_id,answers&id=eq.${encodeURIComponent(applicationId)}&limit=1`
   );
-  const profileId = apps[0]?.profile_id;
-  if (!profileId) return {};
+  const profileId = apps[0]?.profile_id ?? null;
+  if (!profileId) return { profileId: null, answers: apps[0]?.answers ?? {}, profile: {} };
 
   const profiles = await request<Array<{ profile: CareerProfilePayload }>>(
     `career_profiles?select=profile&id=eq.${encodeURIComponent(profileId)}&limit=1`
   );
-  return profiles[0]?.profile ?? {};
+  return {
+    profileId,
+    answers: apps[0]?.answers ?? {},
+    profile: profiles[0]?.profile ?? {}
+  };
 }
 
 export type ApplicationStageObserver = (event: {
@@ -51,11 +62,36 @@ export type ApplicationStageObserver = (event: {
 export class SupabaseApplicationStore implements ApplicationStore {
   constructor(private readonly stageObserver?: ApplicationStageObserver) {}
   async getVerifiedAnswers(applicationId: string): Promise<Record<string, string>> {
-    return (await profileForApplication(applicationId)).verifiedAnswers ?? {};
+    const context = await applicationContext(applicationId);
+    const reusable = context.profileId
+      ? await request<Array<{ answer_key: string; answer_value: string }>>(
+          `answer_vault?select=answer_key,answer_value&profile_id=eq.${encodeURIComponent(context.profileId)}&reuse_policy=eq.always`
+        )
+      : [];
+
+    return {
+      ...(context.profile.verifiedAnswers ?? {}),
+      ...Object.fromEntries(reusable.map((row) => [row.answer_key, row.answer_value])),
+      ...(context.answers ?? {})
+    };
+  }
+
+  async getAutoApprovedAnswerKeys(applicationId: string): Promise<string[]> {
+    const context = await applicationContext(applicationId);
+    const reusable = context.profileId
+      ? await request<Array<{ answer_key: string }>>(
+          `answer_vault?select=answer_key&profile_id=eq.${encodeURIComponent(context.profileId)}&reuse_policy=eq.always`
+        )
+      : [];
+
+    return [
+      ...reusable.map((row) => row.answer_key),
+      ...Object.keys(context.answers ?? {})
+    ];
   }
 
   async getAssets(applicationId: string): Promise<Record<string, string>> {
-    return (await profileForApplication(applicationId)).assets ?? {};
+    return (await applicationContext(applicationId)).profile.assets ?? {};
   }
 
   async canSubmit(applicationId: string): Promise<{ allowed: boolean; reason: string }> {
