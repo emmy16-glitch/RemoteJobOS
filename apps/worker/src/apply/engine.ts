@@ -7,10 +7,31 @@ import {
 import type { ApplicationAdapter, ApplicationContext, ApplicationStore } from "./types.js";
 
 export type PipelineOutcome =
-  | { status: "needs-review"; attemptId: string; reason: string }
+  | {
+      status: "needs-review";
+      attemptId: string;
+      reason: string;
+      fields: Array<{
+        key: string;
+        label: string;
+        reason: string;
+        sensitive: boolean;
+        kind: string;
+        options?: string[];
+      }>;
+    }
   | { status: "dry-run-verified"; attemptId: string }
   | { status: "submitted"; attemptId: string; confirmed: boolean }
-  | { status: "blocked"; attemptId: string; reason: string }
+  | {
+      status: "blocked";
+      attemptId: string;
+      reason: string;
+      issues?: Array<{
+        fieldKey: string;
+        code: string;
+        message: string;
+      }>;
+    }
   | {
       status: "failed";
       attemptId: string;
@@ -46,8 +67,16 @@ export async function runApplicationPipeline(
 
     assertToolFamilyAllowed("plan", "profile");
     await store.recordStage(attemptId, "plan", "started", { fieldCount: fields.length });
-    const verifiedAnswers = await store.getVerifiedAnswers(context.applicationId);
-    const plan = buildDeterministicFillPlan(fields, verifiedAnswers, Object.keys(assets));
+    const [verifiedAnswers, autoApprovedAnswerKeys] = await Promise.all([
+      store.getVerifiedAnswers(context.applicationId),
+      store.getAutoApprovedAnswerKeys(context.applicationId)
+    ]);
+    const plan = buildDeterministicFillPlan(
+      fields,
+      verifiedAnswers,
+      Object.keys(assets),
+      autoApprovedAnswerKeys
+    );
 
     const reviews = plan.filter((entry) => entry.action.type === "human-review");
     if (reviews.length) {
@@ -59,7 +88,22 @@ export async function runApplicationPipeline(
           reason: entry.action.type === "human-review" ? entry.action.reason : ""
         }))
       });
-      return { status: "needs-review", attemptId, reason };
+      return {
+        status: "needs-review",
+        attemptId,
+        reason,
+        fields: reviews.map((entry) => ({
+          key: entry.field.key,
+          label: entry.field.label,
+          reason:
+            entry.action.type === "human-review"
+              ? entry.action.reason
+              : "Human review required",
+          sensitive: Boolean(entry.field.sensitive),
+          kind: entry.field.kind,
+          options: entry.field.options
+        }))
+      };
     }
 
     assertToolFamilyAllowed("fill", "browser");
@@ -77,7 +121,8 @@ export async function runApplicationPipeline(
       return {
         status: "blocked",
         attemptId,
-        reason: `Verification failed with ${verification.issues.length} issue(s)`
+        reason: `Verification failed with ${verification.issues.length} issue(s)`,
+        issues: verification.issues
       };
     }
 

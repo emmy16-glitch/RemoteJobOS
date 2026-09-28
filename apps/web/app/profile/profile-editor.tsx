@@ -40,6 +40,7 @@ export type EditableProfile = {
   blockedRequirements: string[];
   verifiedAnswers: Record<string, string>;
   facts: VerifiedCareerFact[];
+  autonomyMode: "auto-except" | "review";
 };
 
 function emptyFact(): VerifiedCareerFact {
@@ -441,6 +442,21 @@ export function ProfileEditor({
 
         <div className="formGrid two">
           <label>
+            <span>Application autonomy</span>
+            <select
+              name="autonomyMode"
+              defaultValue={initial.autonomyMode}
+            >
+              <option value="auto-except">
+                Auto-except — apply automatically unless RemoteJobOS needs me
+              </option>
+              <option value="review">
+                Review every verified application before submit
+              </option>
+            </select>
+          </label>
+
+          <label>
             <span>Seniority targeting</span>
             <select
               name="seniorityTarget"
@@ -467,6 +483,27 @@ export function ProfileEditor({
               placeholder="Python, JavaScript, Linux, Git, Docker..."
               rows={3}
             />
+          </label>
+        </div>
+
+        <div className="formGrid two">
+          <label>
+            <span>Application autonomy</span>
+            <select
+              name="autonomyMode"
+              defaultValue={initial.autonomyMode ?? "auto-except"}
+            >
+              <option value="auto-except">
+                Auto-except — apply automatically unless something needs me
+              </option>
+              <option value="review">
+                Review mode — ask before every live submission
+              </option>
+            </select>
+            <small>
+              Auto-except still pauses for missing or sensitive answers, CAPTCHA,
+              unsupported sites, uncertain submission outcomes, and safety blocks.
+            </small>
           </label>
         </div>
 
@@ -525,9 +562,15 @@ export function ProfileEditor({
 
       <div className="profileSave">
         <div>
-          <strong>Review-before-submit stays enabled.</strong>
+          <strong>
+            {initial.autonomyMode === "auto-except"
+              ? "Auto-except is the recommended mode."
+              : "Review mode requires approval before every submission."}
+          </strong>
           <span>
-            Saving this profile does not enable automatic live submission.
+            In auto-except mode, RemoteJobOS submits only after deterministic
+            form verification. Missing, sensitive, ambiguous or unsafe cases
+            stop in the Exception Center.
           </span>
         </div>
         <button type="submit" className="primaryButton">

@@ -112,7 +112,9 @@ export async function GET(request: NextRequest) {
         refresh_token_ciphertext: encrypted.ciphertext,
         token_iv: encrypted.iv,
         token_tag: encrypted.tag,
-        granted_scope: tokens.scope ?? "https://www.googleapis.com/auth/gmail.readonly",
+        granted_scope:
+          tokens.scope ??
+          "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send",
         active: true,
         last_error: null,
         updated_at: new Date().toISOString()

@@ -75,6 +75,8 @@ type ApprovalRow = {
   summary: string;
   snapshot: Record<string, unknown>;
   expires_at: string;
+  decision_source?: "manual" | "policy";
+  decision_reason?: string | null;
 };
 
 function asArray(value: unknown): string[] {
@@ -569,6 +571,8 @@ export async function requestSubmissionApproval(args: {
         application_id: args.applicationId,
         approval_type: "submit-application",
         status: "pending",
+        decision_source: "manual",
+        decision_reason: "User review mode requires explicit approval",
         summary: "Dry-run verified. Approve live submission of this application.",
         snapshot: {
           verification: args.verification,
@@ -629,11 +633,16 @@ async function ensureApprovedSubmissionTask(
     })
   });
 
+  const taskType =
+    approval.decision_source === "policy"
+      ? "application-auto-submit"
+      : "application-submit";
+
   await request("agent_tasks?on_conflict=idempotency_key", {
     method: "POST",
     headers: { prefer: "resolution=ignore-duplicates,return=minimal" },
     body: JSON.stringify({
-      task_type: "application-submit",
+      task_type: taskType,
       payload: {
         applicationId: approval.application_id,
         runId: approval.run_id,
@@ -642,7 +651,7 @@ async function ensureApprovedSubmissionTask(
       status: "pending",
       priority: 40,
       max_attempts: 3,
-      idempotency_key: `application-submit:${approval.run_id}:${approval.id}`
+      idempotency_key: `${taskType}:${approval.run_id}:${approval.id}`
     })
   });
 
@@ -653,6 +662,75 @@ async function ensureApprovedSubmissionTask(
       updated_at: new Date().toISOString()
     })
   });
+}
+
+export async function authorizeAutoSubmission(args: {
+  runId: string;
+  applicationId: string;
+  verification: HarnessVerification;
+}): Promise<ApprovalRow> {
+  const existing = await request<ApprovalRow[]>(
+    `agent_approvals?select=*&run_id=eq.${encodeURIComponent(args.runId)}&approval_type=eq.submit-application&limit=1`
+  );
+
+  let approval = existing[0];
+  if (!approval) {
+    const rows = await request<ApprovalRow[]>("agent_approvals?select=*", {
+      method: "POST",
+      headers: { prefer: "return=representation" },
+      body: JSON.stringify({
+        run_id: args.runId,
+        application_id: args.applicationId,
+        approval_type: "submit-application",
+        status: "approved",
+        decision_source: "policy",
+        decision_reason: "Auto-except policy: verified dry-run had no unresolved fields or blockers",
+        summary: "Auto-except policy authorized live submission after deterministic dry-run verification.",
+        snapshot: {
+          verification: args.verification,
+          resumePhase: "fence"
+        },
+        decided_at: new Date().toISOString()
+      })
+    });
+    approval = rows[0];
+  } else if (approval.status === "pending") {
+    const rows = await request<ApprovalRow[]>(
+      `agent_approvals?id=eq.${encodeURIComponent(approval.id)}&select=*`,
+      {
+        method: "PATCH",
+        headers: { prefer: "return=representation" },
+        body: JSON.stringify({
+          status: "approved",
+          decision_source: "policy",
+          decision_reason: "Auto-except policy: verified dry-run had no unresolved fields or blockers",
+          decided_at: new Date().toISOString(),
+          snapshot: {
+            verification: args.verification,
+            resumePhase: "fence"
+          }
+        })
+      }
+    );
+    approval = rows[0] ?? approval;
+  }
+
+  if (!approval || approval.status !== "approved") {
+    throw new Error("Could not policy-authorize automatic submission");
+  }
+
+  await ensureApprovedSubmissionTask(approval);
+
+  await request(`applications?id=eq.${encodeURIComponent(args.applicationId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      status: "auto-submit-queued",
+      next_action: "Verified clean application queued for automatic submission.",
+      updated_at: new Date().toISOString()
+    })
+  });
+
+  return approval;
 }
 
 export async function decideHarnessApproval(

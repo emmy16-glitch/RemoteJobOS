@@ -60,7 +60,7 @@ function fieldKind(raw: RawField): FieldKind {
 }
 
 function isSensitive(label: string): boolean {
-  return /salary|compensation|citizenship|security clearance|criminal|disability|race|ethnicity|gender|veteran|demographic|sponsorship|relocation/i.test(label);
+  return /salary|compensation|citizenship|security clearance|criminal|disability|race|ethnicity|gender|veteran|demographic|sponsorship|relocation|visa|work authorization|work permit|legally authorized/i.test(label);
 }
 
 function boolValue(value: string): boolean {

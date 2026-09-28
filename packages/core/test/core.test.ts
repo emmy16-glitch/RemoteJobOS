@@ -361,3 +361,45 @@ test("harness exposes progressive tool families by phase", async () => {
     "already-complete"
   );
 });
+
+
+test("auto-except reuses sensitive answers only when explicitly allowed", async () => {
+  const { buildDeterministicFillPlan } = await import("../src/planner.ts");
+
+  const fields = [{
+    key: "sponsorship",
+    label: "Will you require visa sponsorship?",
+    kind: "select" as const,
+    required: true,
+    options: ["Yes", "No"],
+    sensitive: true
+  }];
+
+  const blocked = buildDeterministicFillPlan(
+    fields,
+    { "will you require visa sponsorship": "Yes" }
+  );
+  assert.equal(blocked[0]?.action.type, "human-review");
+
+  const allowed = buildDeterministicFillPlan(
+    fields,
+    { "will you require visa sponsorship": "Yes" },
+    [],
+    ["will you require visa sponsorship"]
+  );
+  assert.deepEqual(allowed[0]?.action, { type: "fill", value: "Yes" });
+});
+
+test("auto-except still blocks unknown required fields without verified answers", async () => {
+  const { buildDeterministicFillPlan } = await import("../src/planner.ts");
+  const plan = buildDeterministicFillPlan([
+    {
+      key: "custom-question",
+      label: "Describe a private company-specific requirement",
+      kind: "custom" as const,
+      required: true
+    }
+  ], {});
+
+  assert.equal(plan[0]?.action.type, "human-review");
+});

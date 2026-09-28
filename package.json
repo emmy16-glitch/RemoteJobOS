@@ -18,7 +18,10 @@
     "worker:sync-applications": "npm run sync-applications --workspace @remotejobos/worker",
     "worker:process-application-tasks": "npm run process-application-tasks --workspace @remotejobos/worker",
     "worker:decide-approval": "npm run decide-approval --workspace @remotejobos/worker",
-    "worker:process-approved-submission": "npm run process-approved-submission --workspace @remotejobos/worker"
+    "worker:process-approved-submission": "npm run process-approved-submission --workspace @remotejobos/worker",
+    "worker:process-auto-submissions": "npm run process-auto-submissions --workspace @remotejobos/worker",
+    "worker:sync-gmail": "npm run sync-gmail --workspace @remotejobos/worker",
+    "worker:send-notifications": "npm run send-notifications --workspace @remotejobos/worker"
   },
   "engines": {
     "node": ">=22"

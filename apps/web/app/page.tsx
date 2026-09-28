@@ -3,20 +3,11 @@ import { signOut } from "./auth-actions";
 import { authenticatedUserId } from "../lib/auth";
 import { getDashboardData } from "../lib/dashboard-data";
 import { publicSupabaseEnv, serverSupabaseEnv } from "../lib/supabase/env";
+import { Sidebar } from "./components/sidebar";
 
 export const dynamic = "force-dynamic";
 
-const nav = [
-  "Overview",
-  "Jobs",
-  "Applications",
-  "CVs",
-  "Inbox",
-  "Analytics",
-  "Agent",
-  "Rules",
-  "Settings"
-];
+
 
 function Metric({
   label,
@@ -96,29 +87,8 @@ export default async function Home() {
 
   return (
     <main className="shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <div className="mark">R</div>
-          <div>
-            <b>RemoteJobOS</b>
-            <span>Control center</span>
-          </div>
-        </div>
+      <Sidebar active="Overview" agentHealthy={agentOnline} />
 
-        <nav>
-          {nav.map((item, index) => (
-            <a className={index === 0 ? "active" : ""} href="#" key={item}>
-              {item}
-            </a>
-          ))}
-        </nav>
-
-        <div className="sidebarFoot">
-          <span className={agentOnline ? "dot" : "dot off"} />
-          {agentOnline ? "Cloud agent healthy" : "Agent awaiting heartbeat"}
-          <small>Remote-only · AI optional</small>
-        </div>
-      </aside>
 
       <section className="content">
         <header className="topbar">
@@ -171,14 +141,14 @@ export default async function Home() {
             detail="Deterministic match engine"
           />
           <Metric
-            label="Ready for review"
-            value={data.readyForReview.toLocaleString()}
-            detail="Human gate before submission"
+            label="Needs attention"
+            value={data.needsAttention.toLocaleString()}
+            detail="Only blockers that require you"
           />
           <Metric
-            label="Applications"
-            value={data.applications.toLocaleString()}
-            detail={data.applied + " confirmed submitted"}
+            label="Confirmed applied"
+            value={data.applied.toLocaleString()}
+            detail={data.autoSubmitQueued + " currently queued to auto-submit"}
           />
         </section>
 
@@ -245,8 +215,8 @@ export default async function Home() {
               <b>{data.eligible}</b>
             </div>
             <div className="agentStat">
-              <span>Application queue</span>
-              <b>{data.applicationQueue}</b>
+              <span>Auto-submit queued</span>
+              <b>{data.autoSubmitQueued}</b>
             </div>
             <div className="agentStat">
               <span>Confirmed applied</span>
@@ -255,10 +225,11 @@ export default async function Home() {
 
             <div className="agentRule">
               <small>AUTONOMY</small>
-              <strong>Review before submit</strong>
+              <strong>Auto-except</strong>
               <p>
-                Deterministic planning and DOM verification run in the cloud.
-                Sensitive or unknown fields stop for review. AI is not required.
+                Verified applications continue automatically. Missing, ambiguous,
+                sensitive or unsafe cases pause in the Exception Center and can
+                resume from the same durable run.
               </p>
             </div>
           </article>

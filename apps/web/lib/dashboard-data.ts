@@ -1,5 +1,6 @@
 import "server-only";
 import { createAdminSupabaseClient } from "./supabase/admin";
+import { latestProfileForUser } from "./profile";
 
 export type DashboardJob = {
   score: number;
@@ -22,6 +23,8 @@ export type DashboardData = {
   eligible: number;
   strongMatches: number;
   readyForReview: number;
+  needsAttention: number;
+  autoSubmitQueued: number;
   applications: number;
   applied: number;
   prepared: number;
@@ -62,17 +65,9 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
 
   const [
     jobsCountResult,
-    profileResult,
     sourceRunResult
   ] = await Promise.all([
     supabase.from("jobs").select("id", { count: "exact", head: true }).eq("remote", true),
-    supabase
-      .from("career_profiles")
-      .select("id,display_name")
-      .eq("owner_id", userId)
-      .order("updated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
     supabase
       .from("job_source_runs")
       .select("created_at")
@@ -82,7 +77,9 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
       .maybeSingle()
   ]);
 
-  const profile = profileResult.data;
+  // latestProfileForUser securely claims a prepared onboarding seed on the
+  // first authenticated visit, so the user does not need a separate setup step.
+  const profile = await latestProfileForUser(userId);
   const jobsDiscovered = jobsCountResult.count ?? 0;
   const lastSourceSuccess =
     (sourceRunResult.data as { created_at?: string } | null)?.created_at ?? null;
@@ -95,6 +92,8 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
       eligible: 0,
       strongMatches: 0,
       readyForReview: 0,
+      needsAttention: 0,
+      autoSubmitQueued: 0,
       applications: 0,
       applied: 0,
       prepared: 0,
@@ -111,6 +110,8 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
     eligibleResult,
     strongResult,
     readyResult,
+    attentionResult,
+    autoSubmitResult,
     applicationsResult,
     appliedResult,
     preparedResult,
@@ -137,6 +138,16 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
     supabase
       .from("applications")
       .select("id", { count: "exact", head: true })
+      .eq("profile_id", profileId)
+      .eq("status", "needs-attention"),
+    supabase
+      .from("applications")
+      .select("id", { count: "exact", head: true })
+      .eq("profile_id", profileId)
+      .eq("status", "auto-submit-queued"),
+    supabase
+      .from("applications")
+      .select("id", { count: "exact", head: true })
       .eq("profile_id", profileId),
     supabase
       .from("applications")
@@ -147,16 +158,17 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
       .from("applications")
       .select("id", { count: "exact", head: true })
       .eq("profile_id", profileId)
-      .in("status", ["cv-prepared", "ready-for-review"]),
+      .in("status", ["cv-prepared", "ready-for-review", "auto-submit-queued", "needs-attention"]),
     supabase
-      .from("agent_tasks")
+      .from("applications")
       .select("id", { count: "exact", head: true })
-      .eq("task_type", "application-review")
-      .in("status", ["pending", "failed", "claimed"]),
+      .eq("profile_id", profileId)
+      .in("status", ["cv-prepared", "auto-submit-queued", "needs-attention", "ready-for-review"]),
     supabase
-      .from("agent_events")
-      .select("event_type,message,created_at")
-      .order("created_at", { ascending: false })
+      .from("applications")
+      .select("status,next_action,updated_at")
+      .eq("profile_id", profileId)
+      .order("updated_at", { ascending: false })
       .limit(6)
   ]);
 
@@ -198,13 +210,13 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
   });
 
   const activity = ((eventsResult.data ?? []) as Array<{
-    event_type: string;
-    message: string;
-    created_at: string;
+    status: string;
+    next_action: string | null;
+    updated_at: string;
   }>).map((event) => ({
-    time: formatActivityTime(event.created_at),
-    type: event.event_type.split(".")[0]?.replace(/(^.|-.)/g, (part) => part.toUpperCase()) ?? "Agent",
-    text: event.message
+    time: formatActivityTime(event.updated_at),
+    type: event.status.replace(/(^.|-.)/g, (part) => part.toUpperCase()),
+    text: event.next_action ?? "Application state updated"
   }));
 
   return {
@@ -214,6 +226,8 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
     eligible: eligibleResult.count ?? 0,
     strongMatches: strongResult.count ?? 0,
     readyForReview: readyResult.count ?? 0,
+    needsAttention: attentionResult.count ?? 0,
+    autoSubmitQueued: autoSubmitResult.count ?? 0,
     applications: applicationsResult.count ?? 0,
     applied: appliedResult.count ?? 0,
     prepared: preparedResult.count ?? 0,

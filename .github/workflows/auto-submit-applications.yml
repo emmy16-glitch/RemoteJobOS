@@ -1,0 +1,53 @@
+name: Auto-submit verified applications
+
+on:
+  schedule:
+    - cron: "7,22,37,52 * * * *"
+  workflow_dispatch:
+    inputs:
+      max_tasks:
+        description: "Maximum auto-submit tasks for this run"
+        required: false
+        default: "3"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: remotejobos-auto-submit
+  cancel-in-progress: false
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      REMOTEJOBOS_ALLOW_SUBMIT: "true"
+      REMOTEJOBOS_MAX_AUTO_SUBMIT_TASKS: ${{ inputs.max_tasks || '3' }}
+      ENRICHMENT_PROVIDER: none
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Verify required cloud secrets
+        shell: bash
+        run: |
+          test -n "$SUPABASE_URL"
+          test -n "$SUPABASE_SERVICE_ROLE_KEY"
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Process policy-authorized submissions
+        run: npm run process-auto-submissions --workspace @remotejobos/worker -- "${{ inputs.max_tasks || '3' }}"
+      - name: Upload non-sensitive browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: auto-submit-evidence-${{ github.run_id }}
+          path: artifacts/screenshots/
+          if-no-files-found: ignore
+          retention-days: 7
