@@ -26,6 +26,11 @@ jobs:
         with:
           node-version: 22
       - run: npm install
+      - name: Verify required cloud secrets
+        shell: bash
+        run: |
+          test -n "$SUPABASE_URL"
+          test -n "$SUPABASE_SERVICE_ROLE_KEY"
       - name: Score unprocessed remote jobs deterministically
         run: npm run worker:match
       - name: Prepare verified-fact CV plans
