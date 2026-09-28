@@ -231,7 +231,7 @@ export async function startOrResumeApplicationRun(args: {
       mode: args.mode,
       status: "running",
       phase: "assemble",
-      step_limit: args.stepLimit ?? 40,
+      step_limit: args.stepLimit ?? 96,
       active_tool_families: [],
       checkpoint: {
         applicationId: args.applicationId,
