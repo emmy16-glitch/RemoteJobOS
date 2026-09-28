@@ -1,7 +1,7 @@
 import { Sidebar } from "../components/sidebar";
 import { requireDashboardUser } from "../../lib/page-auth";
 import { latestProfileForUser } from "../../lib/profile";
-import { createAdminSupabaseClient } from "../../lib/supabase/admin";
+import { createServerSupabaseClient } from "../../lib/supabase/server";
 import {
   deleteAnswerVaultEntry,
   saveAnswerVaultEntry
@@ -43,7 +43,7 @@ export default async function AnswersPage() {
     );
   }
 
-  const supabase = createAdminSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase
     .from("answer_vault")
     .select("id,answer_key,label,answer_value,reuse_policy,sensitive,updated_at")

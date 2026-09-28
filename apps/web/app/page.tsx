@@ -2,34 +2,10 @@ import { redirect } from "next/navigation";
 import { signOut } from "./auth-actions";
 import { authenticatedUserId } from "../lib/auth";
 import { getDashboardData } from "../lib/dashboard-data";
-import { publicSupabaseEnv, serverSupabaseEnv } from "../lib/supabase/env";
+import { publicSupabaseEnv } from "../lib/supabase/env";
 import { Sidebar } from "./components/sidebar";
 
 export const dynamic = "force-dynamic";
-
-
-
-function Metric({
-  label,
-  value,
-  detail
-}: {
-  label: string;
-  value: string;
-  detail: string;
-}) {
-  return (
-    <article className="metric">
-      <span>{label}</span>
-      <strong>{value}</strong>
-      <small>{detail}</small>
-    </article>
-  );
-}
-
-function setupMissing() {
-  return !publicSupabaseEnv().configured || !serverSupabaseEnv().configured;
-}
 
 function onlineFrom(lastSuccess: string | null) {
   if (!lastSuccess) return false;
@@ -37,34 +13,114 @@ function onlineFrom(lastSuccess: string | null) {
   return Number.isFinite(age) && age >= 0 && age < 3 * 60 * 60 * 1000;
 }
 
+function greeting() {
+  const hour = Number(
+    new Intl.DateTimeFormat("en", {
+      hour: "2-digit",
+      hourCycle: "h23",
+      timeZone: "Africa/Lagos"
+    }).format(new Date())
+  );
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
+
+function initials(name: string | null) {
+  const parts = (name ?? "Remote Job").trim().split(/\s+/).filter(Boolean);
+  return parts.slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "RJ";
+}
+
+function companyInitials(company: string) {
+  const parts = company.trim().split(/\s+/).filter(Boolean);
+  return parts.slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "R";
+}
+
+function statusLabel(status: string) {
+  const map: Record<string, string> = {
+    applied: "Submitted",
+    "auto-submit-queued": "Queued",
+    "needs-attention": "Needs Info",
+    "cv-prepared": "Preparing",
+    "ready-for-review": "Review",
+    response: "Response",
+    assessment: "Assessment",
+    interview: "Interview",
+    offer: "Offer",
+    rejected: "Rejected",
+    withdrawn: "Withdrawn"
+  };
+  return map[status] ?? status.replace(/-/g, " ");
+}
+
+function notificationLabel(classification: string) {
+  const map: Record<string, string> = {
+    interview: "Interview invitation",
+    assessment: "Assessment received",
+    offer: "Offer received",
+    rejection: "Rejection",
+    recruiter: "Recruiter response",
+    "application-received": "Application confirmed"
+  };
+  return map[classification] ?? classification.replace(/-/g, " ");
+}
+
+function MetricCard({
+  tone,
+  icon,
+  value,
+  label,
+  detail
+}: {
+  tone: "blue" | "green" | "purple" | "amber" | "rose";
+  icon: string;
+  value: number;
+  label: string;
+  detail: string;
+}) {
+  return (
+    <article className={"heroMetric " + tone}>
+      <div className="heroMetricIcon" aria-hidden="true">{icon}</div>
+      <div className="heroMetricCopy">
+        <strong>{value.toLocaleString()}</strong>
+        <span>{label}</span>
+        <small>{detail}</small>
+      </div>
+      <div className="miniBars" aria-hidden="true">
+        {[34, 46, 58, 72, 88].map((height, index) => (
+          <i key={index} style={{ height: height + "%" }} />
+        ))}
+      </div>
+    </article>
+  );
+}
+
 export default async function Home() {
-  if (setupMissing()) {
+  if (!publicSupabaseEnv().configured) {
     return (
       <main className="setupShell">
         <section className="setupCard">
-          <div className="brand setupBrand">
-            <div className="mark">R</div>
+          <div className="loginBrand">
+            <div className="brandMark" aria-hidden="true">
+              <span className="brandHandle" />
+              <span className="brandCase" />
+            </div>
             <div>
               <b>RemoteJobOS</b>
-              <span>Cloud-first job operations</span>
+              <span>Find. Apply. Get Hired. Automatically.</span>
             </div>
           </div>
-          <p className="eyebrow">SETUP REQUIRED</p>
-          <h1>Connect the database</h1>
+          <p className="eyebrow">ONE-TIME SETUP</p>
+          <h1>Connect Supabase</h1>
           <p>
-            The dashboard is built, but Supabase environment variables have not
-            been configured in this deployment yet.
+            Add the project URL and publishable key to this deployment. The
+            dashboard now uses your authenticated session and does not need a
+            service-role key for normal browsing.
           </p>
           <div className="setupCode">
             <code>NEXT_PUBLIC_SUPABASE_URL</code>
             <code>NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY</code>
-            <code>SUPABASE_URL</code>
-            <code>SUPABASE_SERVICE_ROLE_KEY</code>
           </div>
-          <p className="muted">
-            The service-role key is server-only and must never use a
-            NEXT_PUBLIC_ prefix.
-          </p>
         </section>
       </main>
     );
@@ -75,215 +131,328 @@ export default async function Home() {
 
   const data = await getDashboardData(userId);
   const agentOnline = onlineFrom(data.lastSourceSuccess);
-  const maxFunnel = Math.max(1, data.jobsDiscovered);
-
-  const funnel: Array<[string, number]> = [
-    ["Discovered", data.jobsDiscovered],
-    ["Eligible", data.eligible],
-    ["Strong match", data.strongMatches],
-    ["Prepared", data.prepared],
-    ["Applied", data.applied]
-  ];
+  const alertCount = data.needsAttention + data.newResponses;
 
   return (
-    <main className="shell">
-      <Sidebar active="Overview" agentHealthy={agentOnline} />
+    <main className="appShell">
+      <Sidebar
+        active="Dashboard"
+        agentHealthy={agentOnline}
+        counts={{
+          Jobs: data.strongMatches,
+          Applications: data.applications,
+          Exceptions: data.needsAttention,
+          CVs: data.cvCount,
+          Inbox: data.newResponses
+        }}
+      />
 
+      <section className="appMain">
+        <header className="appHeader">
+          <form className="globalSearch" action="/jobs">
+            <span aria-hidden="true">⌕</span>
+            <input
+              name="q"
+              aria-label="Search jobs, companies, or applications"
+              placeholder="Search jobs, companies, or view applications..."
+            />
+          </form>
 
-      <section className="content">
-        <header className="topbar">
-          <div>
-            <p className="eyebrow">REMOTE JOB OPERATIONS</p>
-            <h1>Overview</h1>
-          </div>
-
-          <div className="topActions">
-            <div className="status">
-              <span className={agentOnline ? "pulse" : "pulse off"} />
-              {agentOnline ? "Agent online" : "No recent discovery run"}
-            </div>
+          <div className="headerActions">
+            <a className="notificationButton" href="/exceptions" aria-label="Notifications">
+              <span aria-hidden="true">♧</span>
+              {alertCount > 0 ? <b>{Math.min(alertCount, 99)}</b> : null}
+            </a>
+            <span className="headerDivider" />
+            <a className="userMenu" href="/profile">
+              <span className="avatar">{initials(data.profileName)}</span>
+              <strong>{data.profileName ?? "Your profile"}</strong>
+              <span aria-hidden="true">⌄</span>
+            </a>
             <form action={signOut}>
-              <button className="signOut" type="submit">
-                Sign out
-              </button>
+              <button className="logoutButton" type="submit">Sign out</button>
             </form>
           </div>
         </header>
 
-        {!data.profileConfigured ? (
-          <div className="notice warning">
-            <b>Career profile required</b>
-            <span>
-              Jobs can already be discovered, but matching, CV preparation and
-              applications stay disabled until an authenticated career profile
-              is attached to this account.
-            </span>
-          </div>
-        ) : (
-          <div className="notice">
-            <b>Remote-only mode</b>
-            <span>
-              Discover globally. Geographic and work-authorization restrictions
-              are classified after discovery, not before.
-            </span>
-          </div>
-        )}
-
-        <section className="metrics">
-          <Metric
-            label="Jobs discovered"
-            value={data.jobsDiscovered.toLocaleString()}
-            detail="Remote jobs in the database"
-          />
-          <Metric
-            label="Strong matches"
-            value={data.strongMatches.toLocaleString()}
-            detail="Deterministic match engine"
-          />
-          <Metric
-            label="Needs attention"
-            value={data.needsAttention.toLocaleString()}
-            detail="Only blockers that require you"
-          />
-          <Metric
-            label="Confirmed applied"
-            value={data.applied.toLocaleString()}
-            detail={data.autoSubmitQueued + " currently queued to auto-submit"}
-          />
-        </section>
-
-        <section className="grid">
-          <article className="panel jobsPanel">
-            <div className="panelHead">
-              <div>
-                <p>QUEUE</p>
-                <h2>Strong matches</h2>
-              </div>
-              <span className="panelMeta">
-                {data.profileName ?? "Verified profile"}
-              </span>
+        <div className="dashboardCanvas">
+          <section className="welcomeRow">
+            <div>
+              <h1>{greeting()}, {data.firstName} <span aria-hidden="true">👋</span></h1>
+              <p>Your job search is running automatically. Here&apos;s what&apos;s happening.</p>
             </div>
 
-            {data.latestJobs.length ? (
-              <>
-                <div className="jobHeader">
-                  <span>Match</span>
-                  <span>Role</span>
-                  <span>Scope</span>
-                  <span>Category</span>
+            <div className="automationSummary">
+              <div className="automationStatusCard">
+                <span className={agentOnline ? "statusOrb live" : "statusOrb"} />
+                <div>
+                  <small>Automation Status</small>
+                  <strong>{agentOnline ? "Running" : "Waiting"}</strong>
+                  <span>
+                    {data.lastSourceSuccess
+                      ? "Cloud workers reporting normally"
+                      : "Waiting for the first discovery run"}
+                  </span>
                 </div>
-                {data.latestJobs.map((job) => (
-                  <div
-                    className="jobRow"
-                    key={job.company + ":" + job.role}
-                  >
-                    <span className="score">{job.score}</span>
-                    <span>
+              </div>
+              <a className="outlineButton" href="/agent">
+                <span aria-hidden="true">☷</span>
+                View Logs
+              </a>
+            </div>
+          </section>
+
+          {!data.profileConfigured ? (
+            <div className="notice warning dashboardNotice">
+              <b>Finish your career profile</b>
+              <span>
+                Your account is ready, but matching and applications stay paused
+                until a verified profile is attached.
+              </span>
+              <a href="/profile">Open settings →</a>
+            </div>
+          ) : null}
+
+          <section className="heroMetrics">
+            <MetricCard
+              tone="blue"
+              icon="⌕"
+              value={data.newJobsToday}
+              label="New jobs today"
+              detail={data.jobsDiscovered + " remote jobs tracked"}
+            />
+            <MetricCard
+              tone="green"
+              icon="☆"
+              value={data.strongMatches}
+              label="Strong matches"
+              detail={data.eligible + " eligible opportunities"}
+            />
+            <MetricCard
+              tone="purple"
+              icon="▧"
+              value={data.applied}
+              label="Applications submitted"
+              detail={data.autoSubmitQueued + " queued automatically"}
+            />
+            <MetricCard
+              tone="amber"
+              icon="◷"
+              value={data.needsAttention}
+              label="Need your attention"
+              detail={data.needsAttention ? "Requires your input" : "Nothing blocking automation"}
+            />
+            <MetricCard
+              tone="rose"
+              icon="✉"
+              value={data.newResponses}
+              label="New responses"
+              detail={data.gmailConnected ? "Tracked from Gmail" : "Connect Gmail to track replies"}
+            />
+          </section>
+
+          <section className="dashboardGrid">
+            <article className="dashPanel recentApplicationsPanel">
+              <div className="dashPanelHead">
+                <h2>Recent Applications</h2>
+                <a href="/applications">View all applications →</a>
+              </div>
+
+              <div className="applicationTable">
+                <div className="applicationTableHead">
+                  <span>Role / Company</span>
+                  <span>Match</span>
+                  <span>Status</span>
+                  <span>Next action</span>
+                  <span>Updated</span>
+                  <span />
+                </div>
+
+                {data.recentApplications.length ? data.recentApplications.map((application) => (
+                  <div className="applicationTableRow" key={application.id}>
+                    <div className="applicationIdentity">
+                      <span className="companyBadge">{companyInitials(application.company)}</span>
+                      <div>
+                        <b>{application.role}</b>
+                        <strong>{application.company}</strong>
+                        <small>⌖ {application.scope}</small>
+                      </div>
+                    </div>
+                    <span className="matchPill">
+                      {application.score === null ? "—" : application.score + "%"}
+                    </span>
+                    <span className={"statusPill " + application.status}>
+                      {statusLabel(application.status)}
+                    </span>
+                    <span className="nextActionText">{application.nextAction}</span>
+                    <span className="updatedText">{application.updated}</span>
+                    <a className="rowMenu" href={"/applications?status=" + encodeURIComponent(application.status)}>⋮</a>
+                  </div>
+                )) : (
+                  <div className="tableEmpty">
+                    Applications will appear here as soon as strong matches enter the automation pipeline.
+                  </div>
+                )}
+              </div>
+            </article>
+
+            <article className="dashPanel pipelinePanel">
+              <div className="dashPanelHead">
+                <h2>Automation Pipeline</h2>
+                <span className={agentOnline ? "liveBadge" : "liveBadge idle"}>
+                  <i /> {agentOnline ? "Live" : "Waiting"}
+                </span>
+              </div>
+
+              <div className="pipelineList">
+                <div className="pipelineRow">
+                  <span className="pipelineIcon green">⌕</span>
+                  <b>Discovering jobs</b>
+                  <small>{data.newJobsToday} new today</small>
+                </div>
+                <div className="pipelineRow">
+                  <span className="pipelineIcon green">☆</span>
+                  <b>Matching</b>
+                  <small>{data.strongMatches} strong matches</small>
+                </div>
+                <div className="pipelineRow">
+                  <span className="pipelineIcon blue">▧</span>
+                  <b>Generating CVs</b>
+                  <small>{data.cvCount} completed</small>
+                </div>
+                <div className="pipelineRow">
+                  <span className="pipelineIcon purple">▤</span>
+                  <b>Preparing applications</b>
+                  <small>{data.prepared} in progress</small>
+                </div>
+                <div className="pipelineRow">
+                  <span className="pipelineIcon amber">▣</span>
+                  <b>Submitting</b>
+                  <small>{data.autoSubmitQueued} queued</small>
+                </div>
+                <div className="pipelineRow">
+                  <span className="pipelineIcon amber">✉</span>
+                  <b>Tracking responses</b>
+                  <small>{data.gmailConnected ? "Active (Gmail)" : "Connect Gmail"}</small>
+                </div>
+              </div>
+            </article>
+
+            <article className="dashPanel attentionPanel">
+              <div className="dashPanelHead">
+                <h2>Needs Your Attention ({data.needsAttention})</h2>
+                <a href="/exceptions">View all →</a>
+              </div>
+              <div className="compactList">
+                {data.exceptions.length ? data.exceptions.map((item) => (
+                  <div className="attentionRow" key={item.id}>
+                    <span className="companyBadge small">{companyInitials(item.company)}</span>
+                    <div>
+                      <b>{item.role}</b>
+                      <small>{item.company}</small>
+                    </div>
+                    <div className="attentionReason">
+                      <strong>{item.type.replace(/-/g, " ")}</strong>
+                      <small>{item.age}</small>
+                    </div>
+                    <a
+                      className={
+                        "compactAction " +
+                        (item.action === "Review" ? "warn" : "")
+                      }
+                      href="/exceptions"
+                    >
+                      {item.action}
+                    </a>
+                  </div>
+                )) : (
+                  <div className="miniEmpty">Nothing needs you right now.</div>
+                )}
+              </div>
+            </article>
+
+            <article className="dashPanel matchesPanel">
+              <div className="dashPanelHead">
+                <h2>Latest Job Matches</h2>
+                <a href="/jobs">View all →</a>
+              </div>
+              <div className="compactList">
+                {data.latestJobs.slice(0, 4).map((job) => (
+                  <a className="matchRow" href={"/jobs?q=" + encodeURIComponent(job.company)} key={job.id}>
+                    <span className="companyBadge small">{companyInitials(job.company)}</span>
+                    <div>
                       <b>{job.role}</b>
                       <small>{job.company}</small>
-                    </span>
-                    <span>{job.scope}</span>
-                    <span className="chip">{job.family}</span>
-                  </div>
+                    </div>
+                    <strong>{job.score}%</strong>
+                  </a>
                 ))}
-              </>
-            ) : (
-              <div className="emptyState">
-                No strong matches yet. Discovery and matching can run without
-                an AI provider.
+                {!data.latestJobs.length ? <div className="miniEmpty">No scored matches yet.</div> : null}
               </div>
-            )}
-          </article>
+            </article>
 
-          <article className="panel agentPanel">
-            <div className="panelHead">
-              <div>
-                <p>WORKER</p>
-                <h2>Cloud agent</h2>
+            <article className="dashPanel cvsPanel">
+              <div className="dashPanelHead">
+                <h2>Your CVs</h2>
+                <a href="/cvs">View all →</a>
               </div>
-              <span className={agentOnline ? "live" : "live idle"}>
-                {agentOnline ? "HEALTHY" : "IDLE"}
-              </span>
-            </div>
-
-            <div className="agentStat">
-              <span>Discovery</span>
-              <b>{agentOnline ? "Healthy" : "Waiting"}</b>
-            </div>
-            <div className="agentStat">
-              <span>Eligible matches</span>
-              <b>{data.eligible}</b>
-            </div>
-            <div className="agentStat">
-              <span>Auto-submit queued</span>
-              <b>{data.autoSubmitQueued}</b>
-            </div>
-            <div className="agentStat">
-              <span>Confirmed applied</span>
-              <b>{data.applied}</b>
-            </div>
-
-            <div className="agentRule">
-              <small>AUTONOMY</small>
-              <strong>Auto-except</strong>
-              <p>
-                Verified applications continue automatically. Missing, ambiguous,
-                sensitive or unsafe cases pause in the Exception Center and can
-                resume from the same durable run.
-              </p>
-            </div>
-          </article>
-
-          <article className="panel activityPanel">
-            <div className="panelHead">
-              <div>
-                <p>EVENT STREAM</p>
-                <h2>Agent activity</h2>
+              <div className="compactList">
+                {data.latestCvs.map((cv) => (
+                  <a className="cvMiniRow" href="/cvs" key={cv.id}>
+                    <span className="cvMiniIcon">▧</span>
+                    <div>
+                      <b>{cv.role}</b>
+                      <small>Tailored for {cv.company}</small>
+                    </div>
+                    <span>v{cv.version}</span>
+                    <strong>View</strong>
+                  </a>
+                ))}
+                {!data.latestCvs.length ? <div className="miniEmpty">Tailored CVs will appear automatically.</div> : null}
               </div>
-            </div>
+            </article>
 
-            {data.activity.length ? (
-              data.activity.map((event, index) => (
-                <div className="activity" key={event.time + event.type + index}>
-                  <time>{event.time}</time>
-                  <span>{event.type}</span>
-                  <p>{event.text}</p>
-                </div>
-              ))
-            ) : (
-              <div className="emptyState">
-                Agent events will appear here after the cloud workers run.
+            <article className="dashPanel gmailPanel">
+              <div className="dashPanelHead">
+                <h2>Gmail &amp; Notifications</h2>
+                <span className={data.gmailConnected ? "connectedBadge" : "connectedBadge off"}>
+                  <i /> {data.gmailConnected ? "Connected" : "Setup needed"}
+                </span>
               </div>
-            )}
-          </article>
 
-          <article className="panel funnelPanel">
-            <div className="panelHead">
-              <div>
-                <p>PIPELINE</p>
-                <h2>Application funnel</h2>
-              </div>
-            </div>
-
-            {funnel.map(([label, value]) => (
-              <div className="funnel" key={label}>
-                <span>{label}</span>
+              <div className="gmailAccount">
+                <span className="gmailMark">M</span>
                 <div>
-                  <i
-                    style={{
-                      width:
-                        Math.max(
-                          value > 0 ? 5 : 0,
-                          Math.min(100, (value / maxFunnel) * 100)
-                        ) + "%"
-                    }}
-                  />
+                  <b>{data.gmailEmail ?? "Connect your Gmail"}</b>
+                  <small>{data.gmailConnected ? "Lifecycle tracking is active" : "Track employer replies and alerts"}</small>
                 </div>
-                <b>{value}</b>
+                <a href="/inbox">{data.gmailConnected ? "Settings" : "Connect"}</a>
               </div>
-            ))}
-          </article>
-        </section>
+
+              <div className="mailPreviewList">
+                {data.messages.map((message) => (
+                  <a href="/inbox" className="mailPreviewRow" key={message.id}>
+                    <span className={"mailEventIcon " + message.classification}>
+                      {message.classification === "rejection" ? "×" :
+                       message.classification === "application-received" ? "✓" :
+                       message.classification === "interview" ? "▣" : "↗"}
+                    </span>
+                    <div>
+                      <b>{notificationLabel(message.classification)}</b>
+                      <small>{message.subject}</small>
+                    </div>
+                    <time>{message.age}</time>
+                  </a>
+                ))}
+                {!data.messages.length ? (
+                  <div className="miniEmpty">No job-response email has been synchronized yet.</div>
+                ) : null}
+              </div>
+
+              <a className="gmailFooterLink" href="/inbox">View all messages →</a>
+            </article>
+          </section>
+        </div>
       </section>
     </main>
   );

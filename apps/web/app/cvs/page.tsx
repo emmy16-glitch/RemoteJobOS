@@ -1,7 +1,7 @@
 import { Sidebar } from "../components/sidebar";
 import { requireDashboardUser } from "../../lib/page-auth";
 import { latestProfileForUser } from "../../lib/profile";
-import { createAdminSupabaseClient } from "../../lib/supabase/admin";
+import { createServerSupabaseClient } from "../../lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -54,7 +54,7 @@ export default async function CvsPage() {
     );
   }
 
-  const supabase = createAdminSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase
     .from("cv_versions")
     .select("id,job_id,family,version,content,storage_path,created_at")

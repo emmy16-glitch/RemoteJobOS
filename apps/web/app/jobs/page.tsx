@@ -1,7 +1,7 @@
 import { Sidebar } from "../components/sidebar";
 import { requireDashboardUser } from "../../lib/page-auth";
 import { latestProfileForUser } from "../../lib/profile";
-import { createAdminSupabaseClient } from "../../lib/supabase/admin";
+import { createServerSupabaseClient } from "../../lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -64,7 +64,7 @@ export default async function JobsPage({
     );
   }
 
-  const supabase = createAdminSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   let matchQuery = supabase
     .from("job_matches")
     .select("job_id,score,decision,reasons,created_at")
