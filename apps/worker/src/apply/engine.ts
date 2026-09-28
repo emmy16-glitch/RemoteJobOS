@@ -95,9 +95,23 @@ export async function runApplicationPipeline(
       return { status: "dry-run-verified", attemptId };
     }
 
+    const reservedSubmitAttempt = context.beforeSubmitAttempt
+      ? await context.beforeSubmitAttempt()
+      : 1;
+
+    if (reservedSubmitAttempt === null) {
+      const reason = "Safe submit retry limit exhausted";
+      await store.recordStage(attemptId, "submit-preflight", "blocked", {
+        reason
+      });
+      return { status: "blocked", attemptId, reason };
+    }
+
     assertToolFamilyAllowed("submit", "browser");
     assertToolFamilyAllowed("submit", "submission");
-    await store.recordStage(attemptId, "submit-preflight", "started");
+    await store.recordStage(attemptId, "submit-preflight", "started", {
+      submitAttempt: reservedSubmitAttempt
+    });
     const preparation = await adapter.prepareSubmit?.(executionContext) ?? {
       ready: true,
       retryable: false
