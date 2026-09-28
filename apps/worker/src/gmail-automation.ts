@@ -106,6 +106,20 @@ async function preferencesForOwner(ownerId: string): Promise<NotificationPrefs |
 }
 
 export async function sendPendingNotifications(limit = 20): Promise<number> {
+  const staleSendingBefore = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  await request(
+    `notification_outbox?status=eq.sending&updated_at=lt.${encodeURIComponent(staleSendingBefore)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        status: "failed",
+        last_error: "Recovered stale sending state after worker interruption",
+        available_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+    }
+  );
+
   const rows = await request<NotificationRow[]>(
     `notification_outbox?select=*&status=in.(pending,failed)&available_at=lte.${encodeURIComponent(new Date().toISOString())}&order=created_at.asc&limit=${Math.max(1, Math.min(100, limit))}`
   );
