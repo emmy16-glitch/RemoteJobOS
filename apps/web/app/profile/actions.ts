@@ -73,6 +73,14 @@ function parseFacts(value: string): VerifiedCareerFact[] {
     const idValue = String(candidate.id ?? "").trim();
     const id = idValue || `fact-${index + 1}-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48)}`;
 
+    const listField = (key: string) =>
+      Array.isArray(candidate[key])
+        ? (candidate[key] as unknown[])
+            .map(String)
+            .map((entry) => entry.trim())
+            .filter(Boolean)
+        : undefined;
+
     return [{
       id,
       kind: kind as VerifiedCareerFact["kind"],
@@ -81,7 +89,14 @@ function parseFacts(value: string): VerifiedCareerFact[] {
       body,
       keywords,
       roleFamilies: scopedRoles.length ? scopedRoles : undefined,
-      alwaysInclude: candidate.alwaysInclude === true
+      alwaysInclude: candidate.alwaysInclude === true,
+      location: String(candidate.location ?? "").trim() || undefined,
+      startDate: String(candidate.startDate ?? "").trim() || undefined,
+      endDate: String(candidate.endDate ?? "").trim() || undefined,
+      url: String(candidate.url ?? "").trim() || undefined,
+      highlights: listField("highlights"),
+      technologies: listField("technologies"),
+      evidenceUrls: listField("evidenceUrls")
     }];
   });
 }
@@ -120,14 +135,17 @@ export async function saveCareerProfile(formData: FormData) {
     "full name": displayName,
     email: text(formData, "email"),
     phone: text(formData, "phone"),
+    "secondary phone": text(formData, "secondaryPhone"),
     linkedin: text(formData, "linkedin"),
     github: text(formData, "github"),
+    x: text(formData, "xProfile"),
     portfolio: text(formData, "portfolio"),
     city: text(formData, "city"),
     country: text(formData, "country"),
     "current company": text(formData, "currentCompany"),
     "current title": text(formData, "currentTitle"),
-    "years of experience": text(formData, "yearsExperience")
+    "years of experience": text(formData, "yearsExperience"),
+    "professional summary": text(formData, "professionalSummary")
   };
 
   for (const [key, value] of Object.entries(verifiedAnswers)) {
