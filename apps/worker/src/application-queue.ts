@@ -1,5 +1,14 @@
+import {
+  DEFAULT_SAFE_SUBMIT_RETRIES,
+  retryDelayMs
+} from "@remotejobos/core";
 import { config, hasSupabase } from "./config.js";
-import { claimTask, finishTask, type ClaimedTask } from "./task-queue.js";
+import {
+  claimTask,
+  claimTaskByIdempotencyKey,
+  finishTask,
+  type ClaimedTask
+} from "./task-queue.js";
 import { runOneApplication } from "./apply/run-one.js";
 import {
   blockHarnessRun,
@@ -7,8 +16,10 @@ import {
   completeHarnessRun,
   createHarnessStageObserver,
   failHarnessRun,
+  getHarnessApproval,
   requestSubmissionApproval,
   requireApprovedSubmission,
+  reserveSubmitAttempt,
   salvagePersistedApplicationResult,
   startOrResumeApplicationRun,
   verifyApplicationOutcome
@@ -49,6 +60,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (body ? JSON.parse(body) : undefined) as T;
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function updateApplication(
   applicationId: string,
   values: Record<string, unknown>
@@ -85,8 +100,19 @@ async function verifyWithSalvage(
   const verification = await verifyApplicationOutcome(applicationId, outcome);
   if (verification.verified) return verification;
 
-  // One deterministic salvage pass: only persisted database evidence may
-  // rescue a run. This never clicks submit a second time.
+  // A failure explicitly classified as safe/retryable has not started the
+  // consequential side effect, so preserve that classification instead of
+  // replacing it with a generic salvage result.
+  if (
+    outcome.status === "failed" &&
+    outcome.retryable &&
+    !outcome.sideEffectStarted
+  ) {
+    return verification;
+  }
+
+  // One deterministic salvage pass checks only persisted evidence. It never
+  // clicks Submit again.
   return salvagePersistedApplicationResult(applicationId, mode);
 }
 
@@ -222,6 +248,10 @@ async function processSubmitTask(task: ClaimedTask, applicationId: string): Prom
     await finishTask(task, true);
     return;
   }
+  if (run.status === "blocked" && run.recovery_strategy === "manual-reconcile") {
+    await finishTask(task, true);
+    return;
+  }
 
   try {
     await checkpointApplicationRun(run.id, "context", {
@@ -233,53 +263,117 @@ async function processSubmitTask(task: ClaimedTask, applicationId: string): Prom
     await checkpointApplicationRun(run.id, "cv", {
       applicationId,
       approvalId,
-      note: "Re-render/reload verified CV before a fresh browser session."
+      note: "Re-render/reload verified CV before each safe browser submission attempt."
     });
 
-    const outcome = await runOneApplication(applicationId, "submit", {
-      stageObserver: createHarnessStageObserver(run.id)
-    });
-    const verification = await verifyWithSalvage(applicationId, "submit", outcome);
+    for (let localTry = 1; localTry <= DEFAULT_SAFE_SUBMIT_RETRIES; localTry += 1) {
+      const outcome = await runOneApplication(applicationId, "submit", {
+        stageObserver: createHarnessStageObserver(run.id),
+        beforeSubmitAttempt: () =>
+          reserveSubmitAttempt(run.id, DEFAULT_SAFE_SUBMIT_RETRIES)
+      });
+      const verification = await verifyWithSalvage(applicationId, "submit", outcome);
 
-    if (verification.verified && verification.terminal === "submitted") {
-      await completeHarnessRun(run.id, verification, approvalId);
-      await finishTask(task, true);
+      if (verification.verified && verification.terminal === "submitted") {
+        await completeHarnessRun(run.id, verification, approvalId);
+        await finishTask(task, true);
+        return;
+      }
+
+      if (
+        verification.terminal === "needs-review" ||
+        verification.terminal === "blocked"
+      ) {
+        await blockHarnessRun(run.id, applicationId, verification.reason, {
+          verification,
+          outcome,
+          approvalId
+        });
+        await updateApplication(applicationId, {
+          status: "ready-for-review",
+          next_action: verification.reason
+        });
+        await finishTask(task, true);
+        return;
+      }
+
+      const safeRetry =
+        outcome.status === "failed" &&
+        outcome.retryable &&
+        !outcome.sideEffectStarted &&
+        typeof outcome.submitAttempt === "number" &&
+        outcome.submitAttempt < DEFAULT_SAFE_SUBMIT_RETRIES;
+
+      if (safeRetry) {
+        await checkpointApplicationRun(
+          run.id,
+          "report",
+          {
+            safeSubmitRetry: true,
+            submitAttempt: outcome.submitAttempt,
+            maxSubmitAttempts: DEFAULT_SAFE_SUBMIT_RETRIES,
+            reason: outcome.reason
+          },
+          false
+        );
+        await sleep(retryDelayMs(outcome.submitAttempt ?? localTry));
+        continue;
+      }
+
+      const retryLimitReached =
+        outcome.status === "blocked" &&
+        /retry limit exhausted/i.test(outcome.reason);
+
+      if (
+        retryLimitReached ||
+        (
+          outcome.status === "failed" &&
+          outcome.retryable &&
+          !outcome.sideEffectStarted &&
+          outcome.submitAttempt === DEFAULT_SAFE_SUBMIT_RETRIES
+        )
+      ) {
+        const reason =
+          `Safe submit retry limit reached after ${DEFAULT_SAFE_SUBMIT_RETRIES} attempts; human review required.`;
+        await blockHarnessRun(run.id, applicationId, reason, {
+          verification,
+          outcome,
+          approvalId
+        });
+        await updateApplication(applicationId, {
+          status: "ready-for-review",
+          next_action: reason
+        });
+        await finishTask(task, true);
+        return;
+      }
+
+      const runStatus = await failHarnessRun(
+        run.id,
+        applicationId,
+        verification.reason,
+        { verification, outcome, approvalId }
+      );
+
+      if (runStatus === "blocked") {
+        await updateApplication(applicationId, {
+          status: "ready-for-review",
+          next_action: verification.reason
+        });
+        await finishTask(task, true);
+      } else {
+        await finishTask(task, false, verification.reason, 1800);
+      }
       return;
     }
 
-    if (
-      verification.terminal === "needs-review" ||
-      verification.terminal === "blocked"
-    ) {
-      await blockHarnessRun(run.id, applicationId, verification.reason, {
-        verification,
-        outcome,
-        approvalId
-      });
-      await updateApplication(applicationId, {
-        status: "ready-for-review",
-        next_action: verification.reason
-      });
-      await finishTask(task, true);
-      return;
-    }
-
-    const runStatus = await failHarnessRun(
-      run.id,
-      applicationId,
-      verification.reason,
-      { verification, outcome, approvalId }
-    );
-
-    if (runStatus === "blocked") {
-      await updateApplication(applicationId, {
-        status: "ready-for-review",
-        next_action: verification.reason
-      });
-      await finishTask(task, true);
-    } else {
-      await finishTask(task, false, verification.reason, 1800);
-    }
+    const reason = "Submit retry loop ended without a terminal result";
+    await blockHarnessRun(run.id, applicationId, reason, { approvalId });
+    await updateApplication(applicationId, {
+      status: "ready-for-review",
+      next_action: reason
+    });
+    await finishTask(task, true);
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     const runStatus = await failHarnessRun(
@@ -302,23 +396,10 @@ async function processSubmitTask(task: ClaimedTask, applicationId: string): Prom
   }
 }
 
-export async function syncApplications(): Promise<number> {
-  if (!hasSupabase()) {
-    console.log("[application-queue] Supabase is not configured; skipping sync.");
-    return 0;
-  }
-
-  const profiles = await request<ProfileRow[]>(
-    "career_profiles?select=id&order=updated_at.desc&limit=1"
-  );
-  const profile = profiles[0];
-  if (!profile) {
-    console.log("[application-queue] No career profile exists yet.");
-    return 0;
-  }
-
-  // prepare-cvs only creates CV plans for strong matches. This makes a CV plan
-  // the durable promotion boundary from matching into application automation.
+async function syncProfileApplications(profile: ProfileRow): Promise<{
+  created: number;
+  queued: number;
+}> {
   const cvs = await request<CvRow[]>(
     `cv_versions?select=id,job_id,created_at&profile_id=eq.${encodeURIComponent(profile.id)}&job_id=not.is.null&order=created_at.desc&limit=500`
   );
@@ -385,11 +466,68 @@ export async function syncApplications(): Promise<number> {
     );
   }
 
+  return { created: created.length, queued: tasks.length };
+}
+
+export async function syncApplications(): Promise<number> {
+  if (!hasSupabase()) {
+    console.log("[application-queue] Supabase is not configured; skipping sync.");
+    return 0;
+  }
+
+  const profiles = await request<ProfileRow[]>(
+    "career_profiles?select=id&order=updated_at.desc&limit=1000"
+  );
+  if (!profiles.length) {
+    console.log("[application-queue] No career profile exists yet.");
+    return 0;
+  }
+
+  let created = 0;
+  let queued = 0;
+
+  for (const profile of profiles) {
+    const result = await syncProfileApplications(profile);
+    created += result.created;
+    queued += result.queued;
+  }
+
   console.log(
-    `[application-queue] created=${created.length} queued=${tasks.length} ready=${reviewable.length}`
+    `[application-queue] profiles=${profiles.length} created=${created} queued=${queued}`
   );
 
-  return created.length + tasks.length;
+  return created + queued;
+}
+
+function workerId(): string {
+  return process.env.GITHUB_RUN_ID
+    ? `github-actions:${process.env.GITHUB_RUN_ID}`
+    : `worker:${process.pid}`;
+}
+
+export async function processApprovedSubmission(approvalId: string): Promise<number> {
+  if (!hasSupabase()) throw new Error("Supabase is required for approved submission");
+  if ((process.env.REMOTEJOBOS_ALLOW_SUBMIT ?? "").toLowerCase() !== "true") {
+    throw new Error("Live submission is disabled");
+  }
+
+  const approval = await getHarnessApproval(approvalId);
+  if (approval.status === "executed") return 0;
+  if (approval.status !== "approved") {
+    throw new Error(`Approval ${approvalId} is ${approval.status}, not approved`);
+  }
+
+  const key = `application-submit:${approval.run_id}:${approval.id}`;
+  const task = await claimTaskByIdempotencyKey(workerId(), key, 1800);
+  if (!task) {
+    throw new Error(
+      "The exact approved submission task is not currently claimable; it may already be running, completed, or waiting for its retry lease."
+    );
+  }
+
+  const applicationId = applicationIdFromTask(task);
+  await processSubmitTask(task, applicationId);
+  return 1;
 }
 
 export async function processApplicationTasks(maxTasks = 3): Promise<number> {
@@ -399,31 +537,23 @@ export async function processApplicationTasks(maxTasks = 3): Promise<number> {
   }
 
   const limit = Math.max(1, Math.min(10, maxTasks));
-  const workerId = process.env.GITHUB_RUN_ID
-    ? `github-actions:${process.env.GITHUB_RUN_ID}`
-    : `worker:${process.pid}`;
+  const id = workerId();
 
-  const submitEnabled =
-    (process.env.REMOTEJOBOS_ALLOW_SUBMIT ?? "").toLowerCase() === "true";
-  const allowedTaskTypes = submitEnabled
-    ? [REVIEW_TASK_TYPE, SUBMIT_TASK_TYPE]
-    : [REVIEW_TASK_TYPE];
+  // The normal queue remains dry-run/review only. Consequential submit tasks
+  // must be claimed by approval ID through processApprovedSubmission().
+  const allowedTaskTypes = [REVIEW_TASK_TYPE];
 
   let processed = 0;
 
   while (processed < limit) {
-    const task = await claimTask(workerId, allowedTaskTypes, 1800);
+    const task = await claimTask(id, allowedTaskTypes, 1800);
     if (!task) break;
 
     let applicationId = "";
 
     try {
       applicationId = applicationIdFromTask(task);
-      if (task.task_type === SUBMIT_TASK_TYPE) {
-        await processSubmitTask(task, applicationId);
-      } else {
-        await processReviewTask(task, applicationId);
-      }
+      await processReviewTask(task, applicationId);
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       await finishTask(task, false, reason, 1800).catch(() => undefined);
@@ -433,8 +563,6 @@ export async function processApplicationTasks(maxTasks = 3): Promise<number> {
     processed += 1;
   }
 
-  console.log(
-    `[application-queue] processed=${processed} submitEnabled=${submitEnabled}`
-  );
+  console.log(`[application-queue] processed=${processed} mode=review-only`);
   return processed;
 }
