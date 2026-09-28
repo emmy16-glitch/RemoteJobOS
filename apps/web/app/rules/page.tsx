@@ -1,6 +1,6 @@
 import { Sidebar } from "../components/sidebar";
 import { requireDashboardUser } from "../../lib/page-auth";
-import { createAdminSupabaseClient } from "../../lib/supabase/admin";
+import { createServerSupabaseClient } from "../../lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +15,7 @@ type CompanyPolicy = {
 
 export default async function RulesPage() {
   await requireDashboardUser("/rules");
-  const supabase = createAdminSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
     .from("company_policy")
