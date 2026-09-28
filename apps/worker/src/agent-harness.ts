@@ -27,6 +27,7 @@ export type HarnessRunRow = {
   idempotency_key: string;
   started_at: string | null;
   completed_at: string | null;
+  submit_attempts: number;
 };
 
 type ApplicationStateRow = {
@@ -533,6 +534,20 @@ export async function salvagePersistedApplicationResult(
         : "No durable terminal result could be salvaged",
     evidence: { recovery }
   };
+}
+
+export async function reserveSubmitAttempt(
+  runId: string,
+  maxAttempts = 3
+): Promise<number | null> {
+  const attempt = await request<number | null>("rpc/reserve_agent_submit_attempt", {
+    method: "POST",
+    body: JSON.stringify({
+      p_run_id: runId,
+      p_max_attempts: maxAttempts
+    })
+  });
+  return typeof attempt === "number" ? attempt : null;
 }
 
 export async function requestSubmissionApproval(args: {
