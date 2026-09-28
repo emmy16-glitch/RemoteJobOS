@@ -2029,3 +2029,599 @@ body {
   background: #eaf8f1;
   color: #226047;
 }
+
+
+/* -------------------------------------------------------------------------- */
+/* Calm control-room redesign — September 2026                                */
+/* -------------------------------------------------------------------------- */
+
+:root {
+  --rj-bg: #f6f6f3;
+  --rj-surface: #ffffff;
+  --rj-surface-soft: #f8f8f6;
+  --rj-line: #e4e5e1;
+  --rj-line-soft: #efefec;
+  --rj-text: #141715;
+  --rj-text-soft: #68706a;
+  --rj-blue: #285c49;
+  --rj-blue-soft: #edf3ef;
+  --rj-green: #285c49;
+  --rj-green-soft: #edf3ef;
+  --rj-purple: #5e675f;
+  --rj-purple-soft: #f1f2ef;
+  --rj-amber: #8a6a2f;
+  --rj-amber-soft: #f7f3e9;
+  --rj-rose: #86524e;
+  --rj-rose-soft: #f7efee;
+  --rj-shadow: none;
+}
+
+html,
+body,
+.appShell,
+.shell,
+.appMain {
+  background: var(--rj-bg);
+  color: var(--rj-text);
+}
+
+.sidebar {
+  background: #fbfbf9;
+  border-right-color: var(--rj-line);
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.brand {
+  min-height: 72px;
+  padding: 0 10px;
+}
+
+.brand b {
+  color: #171a18;
+  font-size: 18px;
+  letter-spacing: -.035em;
+}
+
+.brand > div:last-child > span {
+  color: #7b827c;
+}
+
+.brandCase {
+  background: #202522;
+  box-shadow: none;
+}
+
+.brandHandle {
+  border-color: #202522;
+}
+
+.sideNav {
+  gap: 3px;
+  padding-top: 12px;
+}
+
+.sideNav a {
+  min-height: 40px;
+  color: #555d57;
+  border-radius: 8px;
+  font-weight: 650;
+}
+
+.sideNav a:hover {
+  background: #f1f2ef;
+  color: #1d241f;
+}
+
+.sideNav a.active {
+  background: #ecefeb;
+  color: #1f4d3b;
+}
+
+.sideNav a.active::before {
+  left: -10px;
+  width: 3px;
+  background: #285c49;
+}
+
+.navBadge {
+  min-width: 23px;
+  height: 23px;
+  background: #eceeeb;
+  color: #6c746e;
+}
+
+.navBadge.alert {
+  background: #f3e9e7;
+  color: #8b4a45;
+}
+
+.sidebarStatus {
+  background: #f3f4f1;
+}
+
+.appHeader {
+  height: 68px;
+  grid-template-columns: minmax(260px, 620px) auto;
+  gap: 18px;
+  padding: 0 28px;
+  background: rgba(251,251,249,.96);
+  border-bottom-color: var(--rj-line);
+}
+
+.globalSearch {
+  height: 40px;
+  border-color: #d9dcd7;
+  background: #fff;
+  border-radius: 9px;
+  box-shadow: none;
+}
+
+.globalSearch > span {
+  color: #7b827c;
+  font-size: 18px;
+}
+
+.globalSearch input {
+  color: #202420;
+  font-size: 12px;
+}
+
+.globalSearch input::placeholder {
+  color: #9aa09b;
+}
+
+.notificationButton,
+.userMenu {
+  color: #343a35;
+}
+
+.avatar {
+  background: #2b312d;
+}
+
+.logoutButton:hover {
+  color: #87504c;
+}
+
+.dashboardCanvas {
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 30px 28px 44px;
+}
+
+.welcomeRow {
+  align-items: center;
+  margin: 0 0 22px;
+}
+
+.welcomeRow h1 {
+  color: #151815;
+  font-size: 25px;
+  font-weight: 800;
+  letter-spacing: -.035em;
+}
+
+.welcomeRow h1 span {
+  display: none;
+}
+
+.welcomeRow p {
+  margin-top: 6px;
+  color: #777e78;
+  font-size: 12px;
+}
+
+.automationSummary {
+  gap: 8px;
+}
+
+.automationStatusCard {
+  min-width: 190px;
+  min-height: 54px;
+  padding: 9px 12px;
+  border: 1px solid #dfe4df;
+  background: #f7faf8;
+  border-radius: 9px;
+}
+
+.statusOrb {
+  width: 26px;
+  height: 26px;
+  background: #e8ebe8;
+}
+
+.statusOrb.live {
+  background: #e2eee7;
+}
+
+.statusOrb.live::before {
+  background: #347057;
+  box-shadow: none;
+}
+
+.automationStatusCard small {
+  color: #737b75;
+}
+
+.automationStatusCard strong {
+  color: #285c49;
+  font-size: 14px;
+}
+
+.automationStatusCard span:last-child {
+  color: #7c837e;
+}
+
+.outlineButton {
+  min-height: 38px;
+  border-color: #d9dcd7;
+  background: #fff;
+  color: #303631;
+}
+
+.dashboardNotice {
+  margin: 0 0 18px;
+}
+
+.heroMetrics {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.heroMetric,
+.heroMetric.blue,
+.heroMetric.green,
+.heroMetric.purple,
+.heroMetric.amber,
+.heroMetric.rose {
+  min-height: 96px;
+  gap: 11px;
+  border: 1px solid var(--rj-line);
+  border-radius: 10px;
+  padding: 15px;
+  background: #fff;
+}
+
+.heroMetricIcon,
+.blue .heroMetricIcon,
+.green .heroMetricIcon,
+.purple .heroMetricIcon,
+.amber .heroMetricIcon,
+.rose .heroMetricIcon {
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  background: #f1f2ef;
+  color: #59615b;
+  font-size: 18px;
+}
+
+.heroMetricCopy strong {
+  color: #161916;
+  font-size: 22px;
+}
+
+.heroMetricCopy span {
+  margin-top: 5px;
+  color: #383e39;
+  font-size: 10px;
+}
+
+.heroMetricCopy small,
+.amber .heroMetricCopy small {
+  margin-top: 4px;
+  color: #888f89;
+  font-size: 8px;
+  font-weight: 600;
+}
+
+.miniBars {
+  display: none;
+}
+
+.dashboardGrid {
+  grid-template-columns: minmax(0, 1.75fr) minmax(300px, .75fr);
+  gap: 12px;
+}
+
+.recentApplicationsPanel {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.pipelinePanel {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.attentionPanel {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.matchesPanel {
+  grid-column: 1;
+  grid-row: 3;
+}
+
+.cvsPanel {
+  grid-column: 1;
+  grid-row: 4;
+}
+
+.gmailPanel {
+  grid-column: 2;
+  grid-row: 2 / span 3;
+}
+
+.dashPanel {
+  border-color: var(--rj-line);
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.dashPanelHead {
+  min-height: 48px;
+  padding: 14px 16px 10px;
+}
+
+.dashPanelHead h2 {
+  color: #1a1d1a;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.dashPanelHead a,
+.gmailFooterLink {
+  color: #4f695b;
+}
+
+.applicationTableHead {
+  background: #fafaf8;
+  color: #858c86;
+}
+
+.applicationTableRow {
+  color: #303530;
+}
+
+.companyBadge,
+.companyBadge.small {
+  background: #ecefeb;
+  color: #365245;
+}
+
+.matchPill {
+  background: #edf3ef;
+  color: #315f4b;
+}
+
+.statusPill,
+.liveBadge,
+.connectedBadge {
+  box-shadow: inset 0 0 0 1px rgba(70,80,72,.05);
+}
+
+.statusPill.applied,
+.statusPill.offer,
+.liveBadge,
+.connectedBadge {
+  background: #edf3ef;
+  color: #315f4b;
+}
+
+.statusPill.auto-submit-queued,
+.statusPill.cv-prepared,
+.statusPill.response,
+.statusPill.ready-for-review,
+.statusPill.interview {
+  background: #f0f1ee;
+  color: #5d655f;
+}
+
+.statusPill.needs-attention,
+.statusPill.assessment {
+  background: #f6f2e9;
+  color: #7a632f;
+}
+
+.statusPill.rejected,
+.statusPill.withdrawn {
+  background: #f6eceb;
+  color: #80504b;
+}
+
+.pipelineList {
+  padding: 0 16px 14px;
+}
+
+.pipelineRow {
+  min-height: 43px;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+}
+
+.pipelineRow:not(:last-child)::after {
+  left: 13px;
+  top: 33px;
+  background: #e5e7e3;
+}
+
+.pipelineIcon,
+.pipelineIcon.green,
+.pipelineIcon.blue,
+.pipelineIcon.purple,
+.pipelineIcon.amber {
+  width: 27px;
+  height: 27px;
+  background: #eef0ed;
+  color: #526058;
+  font-size: 11px;
+}
+
+.pipelineRow b {
+  color: #2b302c;
+  font-size: 9px;
+}
+
+.pipelineRow small {
+  color: #858c86;
+}
+
+.gmailAccount {
+  background: #fafaf8 !important;
+  border-color: var(--rj-line) !important;
+}
+
+.gmailMark {
+  background: #ecefeb !important;
+  color: #365245 !important;
+}
+
+.gmailAccount a {
+  color: #315f4b !important;
+}
+
+.mailEventIcon {
+  background: #f0f1ee !important;
+  color: #606862 !important;
+}
+
+.compactAction {
+  background: #f2f3f0 !important;
+  color: #434a45 !important;
+  border-color: #e1e3df !important;
+}
+
+.compactAction.warn {
+  background: #f6f2e9 !important;
+  color: #775f2f !important;
+}
+
+.tableEmpty,
+.miniEmpty {
+  color: #8a918b;
+}
+
+@media (max-width: 1180px) {
+  .appHeader {
+    padding: 0 20px;
+  }
+
+  .heroMetrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .dashboardGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .recentApplicationsPanel,
+  .pipelinePanel,
+  .attentionPanel,
+  .matchesPanel,
+  .cvsPanel,
+  .gmailPanel {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}
+
+@media (max-width: 760px) {
+  .appShell,
+  .shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: static;
+    width: 100%;
+    height: auto;
+    padding-bottom: 8px;
+    border-right: 0;
+    border-bottom: 1px solid var(--rj-line);
+  }
+
+  .brand {
+    min-height: 60px;
+  }
+
+  .sideNav {
+    display: flex;
+    overflow-x: auto;
+    padding: 8px 4px 2px;
+  }
+
+  .sideNav a {
+    min-width: max-content;
+    grid-template-columns: 22px auto;
+    padding: 0 10px;
+  }
+
+  .sideNav a.active::before,
+  .navBadge,
+  .sidebarFoot {
+    display: none;
+  }
+
+  .appHeader {
+    position: static;
+    height: auto;
+    grid-template-columns: 1fr;
+    padding: 12px 14px;
+  }
+
+  .headerActions {
+    justify-content: space-between;
+  }
+
+  .dashboardCanvas {
+    padding: 20px 14px 34px;
+  }
+
+  .welcomeRow {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .automationSummary {
+    width: 100%;
+  }
+
+  .automationStatusCard {
+    flex: 1;
+  }
+
+  .heroMetrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .heroMetric {
+    min-height: 88px;
+  }
+
+  .applicationTable {
+    overflow-x: auto;
+  }
+
+  .applicationTableHead,
+  .applicationTableRow {
+    min-width: 760px;
+  }
+}
+
+@media (max-width: 480px) {
+  .heroMetrics {
+    grid-template-columns: 1fr;
+  }
+
+  .automationSummary {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .outlineButton {
+    justify-content: center;
+  }
+}
