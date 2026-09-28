@@ -84,14 +84,10 @@ export async function matchJobs() {
   let review = 0;
 
   for (const profileRow of profiles) {
-    const existing = await supabaseGet<Array<{ job_id: string }>>(
-      `job_matches?select=job_id&profile_id=eq.${encodeURIComponent(profileRow.id)}`
-    );
-    const seen = new Set(existing.map((row) => row.job_id));
-
-    const rows = jobs
-      .filter((job) => !seen.has(job.id))
-      .map((row) => {
+    // Matches are live/recomputable state, not durable memory. Re-score the
+    // current job snapshot against the current verified profile every run so
+    // profile edits and job-description changes cannot leave stale scores.
+    const rows = jobs.map((row) => {
         const job: NormalizedJob = {
           source: row.source,
           externalId: row.external_id,
