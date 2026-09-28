@@ -17,6 +17,7 @@ import {
   createHarnessStageObserver,
   failHarnessRun,
   getHarnessApproval,
+  authorizeAutoSubmission,
   requestSubmissionApproval,
   requireApprovedSubmission,
   reserveSubmitAttempt,
@@ -24,9 +25,18 @@ import {
   startOrResumeApplicationRun,
   verifyApplicationOutcome
 } from "./agent-harness.js";
+import {
+  createApplicationException,
+  createFieldExceptions
+} from "./application-exceptions.js";
+import {
+  jobLabelForApplication,
+  queueNotification
+} from "./notifications.js";
 
 const REVIEW_TASK_TYPE = "application-review";
 const SUBMIT_TASK_TYPE = "application-submit";
+const AUTO_SUBMIT_TASK_TYPE = "application-auto-submit";
 
 type ProfileRow = { id: string };
 type CvRow = { id: string; job_id: string | null; created_at: string };
@@ -36,6 +46,7 @@ type ApplicationRow = {
   profile_id: string | null;
   cv_version_id: string | null;
   status: string;
+  autonomy_mode?: string;
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -92,6 +103,31 @@ function applicationIdFromTask(task: ClaimedTask): string {
   return payloadString(task, "applicationId");
 }
 
+async function applicationAutonomyMode(applicationId: string): Promise<string> {
+  const rows = await request<Array<{ autonomy_mode: string }>>(
+    `applications?select=autonomy_mode&id=eq.${encodeURIComponent(applicationId)}&limit=1`
+  );
+  return rows[0]?.autonomy_mode ?? "auto-except";
+}
+
+async function notifySubmitted(applicationId: string): Promise<void> {
+  const job = await jobLabelForApplication(applicationId);
+  await queueNotification({
+    applicationId,
+    kind: "submitted",
+    subject: `Application submitted: ${job.company} — ${job.title}`,
+    bodyText: [
+      "RemoteJobOS submitted and verified your application.",
+      "",
+      `Company: ${job.company}`,
+      `Role: ${job.title}`,
+      "",
+      "The application was marked submitted only after confirmation evidence was detected."
+    ].join("\n"),
+    dedupeKey: `submitted:${applicationId}`
+  });
+}
+
 async function verifyWithSalvage(
   applicationId: string,
   mode: "dry-run" | "submit",
@@ -117,17 +153,22 @@ async function verifyWithSalvage(
 }
 
 async function processReviewTask(task: ClaimedTask, applicationId: string): Promise<void> {
+  const resumeRunId =
+    typeof task.payload.runId === "string" && task.payload.runId
+      ? task.payload.runId
+      : undefined;
+
   const run = await startOrResumeApplicationRun({
     taskId: task.id,
     applicationId,
-    mode: "dry-run"
+    mode: "dry-run",
+    resumeRunId
   });
 
   if (
     run.status === "waiting-approval" ||
     run.status === "completed" ||
-    run.status === "cancelled" ||
-    run.status === "blocked"
+    run.status === "cancelled"
   ) {
     await finishTask(task, true);
     return;
@@ -149,31 +190,70 @@ async function processReviewTask(task: ClaimedTask, applicationId: string): Prom
     const verification = await verifyWithSalvage(applicationId, "dry-run", outcome);
 
     if (verification.verified && verification.terminal === "dry-run-verified") {
-      const approval = await requestSubmissionApproval({
-        runId: run.id,
-        applicationId,
-        verification
-      });
+      const autonomyMode = await applicationAutonomyMode(applicationId);
 
-      await updateApplication(applicationId, {
-        status: "ready-for-review",
-        next_action: `Dry-run verified. Approval ${approval.id} is required before live submission.`
+      if (autonomyMode === "auto-except") {
+        await authorizeAutoSubmission({
+          runId: run.id,
+          applicationId,
+          verification
+        });
+      } else {
+        const approval = await requestSubmissionApproval({
+          runId: run.id,
+          applicationId,
+          verification
+        });
+        await updateApplication(applicationId, {
+          status: "ready-for-review",
+          next_action: `Dry-run verified. Approval ${approval.id} is required before live submission.`
+        });
+      }
+
+      await finishTask(task, true);
+      return;
+    }
+
+    if (outcome.status === "needs-review") {
+      await createFieldExceptions({
+        applicationId,
+        runId: run.id,
+        attemptId: outcome.attemptId,
+        fields: outcome.fields
+      });
+      await blockHarnessRun(run.id, applicationId, verification.reason, {
+        verification,
+        outcome
       });
       await finishTask(task, true);
       return;
     }
 
-    if (
-      verification.terminal === "needs-review" ||
-      verification.terminal === "blocked"
-    ) {
+    if (verification.terminal === "blocked") {
+      const issueType =
+        outcome.status === "blocked" &&
+        "issues" in outcome &&
+        Array.isArray(outcome.issues) &&
+        outcome.issues.some((issue) => issue.fieldKey === "captcha")
+          ? "captcha"
+          : "verification-failed";
+
+      await createApplicationException({
+        applicationId,
+        runId: run.id,
+        type: issueType,
+        title:
+          issueType === "captcha"
+            ? "CAPTCHA requires your attention"
+            : "Application verification needs review",
+        detail: verification.reason,
+        payload: { verification, outcome },
+        dedupeKey: `${issueType}:${applicationId}:${outcome.attemptId}`
+      });
+
       await blockHarnessRun(run.id, applicationId, verification.reason, {
         verification,
         outcome
-      });
-      await updateApplication(applicationId, {
-        status: "ready-for-review",
-        next_action: verification.reason
       });
       await finishTask(task, true);
       return;
@@ -187,9 +267,14 @@ async function processReviewTask(task: ClaimedTask, applicationId: string): Prom
     );
 
     if (runStatus === "blocked") {
-      await updateApplication(applicationId, {
-        status: "ready-for-review",
-        next_action: verification.reason
+      await createApplicationException({
+        applicationId,
+        runId: run.id,
+        type: "other",
+        title: "Application run needs review",
+        detail: verification.reason,
+        payload: { verification, outcome },
+        dedupeKey: `blocked:${applicationId}:${outcome.attemptId}`
       });
       await finishTask(task, true);
     } else {
@@ -199,15 +284,21 @@ async function processReviewTask(task: ClaimedTask, applicationId: string): Prom
     const reason = error instanceof Error ? error.message : String(error);
 
     if (reason.startsWith("No supported application adapter")) {
+      await createApplicationException({
+        applicationId,
+        runId: run.id,
+        type: "unsupported-ats",
+        title: "This job site needs a new application adapter",
+        detail: "RemoteJobOS could not safely automate this ATS yet. Open the job from the dashboard or wait until support is added.",
+        payload: { reason },
+        dedupeKey: `unsupported-ats:${applicationId}`
+      }).catch(() => undefined);
+
       await blockHarnessRun(run.id, applicationId, reason, {
         taskType: task.task_type
       }).catch(() => undefined);
-      await updateApplication(applicationId, {
-        status: "ready-for-review",
-        next_action: "No verified browser adapter exists for this ATS yet"
-      }).catch(() => undefined);
       await finishTask(task, true).catch(() => undefined);
-      console.log(`[application-queue] unsupported ATS moved to review: ${applicationId}`);
+      console.log(`[application-queue] unsupported ATS moved to exceptions: ${applicationId}`);
       return;
     }
 
@@ -219,9 +310,14 @@ async function processReviewTask(task: ClaimedTask, applicationId: string): Prom
     ).catch(() => "failed" as const);
 
     if (runStatus === "blocked") {
-      await updateApplication(applicationId, {
-        status: "ready-for-review",
-        next_action: reason
+      await createApplicationException({
+        applicationId,
+        runId: run.id,
+        type: "other",
+        title: "Application automation stopped",
+        detail: reason,
+        payload: { taskType: task.task_type },
+        dedupeKey: `review-failure:${applicationId}:${run.id}`
       }).catch(() => undefined);
       await finishTask(task, true).catch(() => undefined);
     } else {
