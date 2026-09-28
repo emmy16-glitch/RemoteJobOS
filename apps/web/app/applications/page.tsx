@@ -120,7 +120,9 @@ export default async function ApplicationsPage({
             <option value="cv-prepared">CV prepared</option>
             <option value="auto-submit-queued">Auto-submit queued</option>
             <option value="needs-attention">Needs attention</option>
-            <option value="ready-for-review">Ready for review</option>
+            <option value="ready-for-review">Manual review</option>
+            <option value="auto-submit-queued">Auto-submit queued</option>
+            <option value="needs-attention">Needs attention</option>
             <option value="applied">Applied</option>
             <option value="response">Response</option>
             <option value="assessment">Assessment</option>
