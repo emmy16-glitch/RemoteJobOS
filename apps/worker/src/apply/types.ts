@@ -10,6 +10,7 @@ export interface ApplicationContext {
   workerId: string;
   dryRun: boolean;
   assets?: Record<string, string>;
+  beforeSubmitAttempt?: () => Promise<number | null>;
 }
 
 export interface SubmitPreparationResult {
