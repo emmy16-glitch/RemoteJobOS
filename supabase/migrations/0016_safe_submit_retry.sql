@@ -1,3 +1,7 @@
+alter table public.agent_runs
+  add column if not exists submit_attempts integer not null default 0
+    check (submit_attempts >= 0 and submit_attempts <= 20);
+
 create or replace function public.release_submission_fence(
   p_application_id uuid,
   p_attempt_id uuid
@@ -72,4 +76,34 @@ $$;
 revoke execute on function public.claim_agent_task_by_key(text, text, integer)
   from public, anon, authenticated;
 grant execute on function public.claim_agent_task_by_key(text, text, integer)
+  to service_role;
+
+
+create or replace function public.reserve_agent_submit_attempt(
+  p_run_id uuid,
+  p_max_attempts integer default 3
+)
+returns integer
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  next_attempt integer;
+begin
+  update public.agent_runs
+  set submit_attempts = submit_attempts + 1,
+      updated_at = now()
+  where id = p_run_id
+    and submit_attempts < greatest(1, least(20, p_max_attempts))
+    and status in ('pending','running','failed')
+  returning submit_attempts into next_attempt;
+
+  return next_attempt;
+end;
+$$;
+
+revoke execute on function public.reserve_agent_submit_attempt(uuid, integer)
+  from public, anon, authenticated;
+grant execute on function public.reserve_agent_submit_attempt(uuid, integer)
   to service_role;
