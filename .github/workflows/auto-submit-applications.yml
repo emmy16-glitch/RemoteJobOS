@@ -42,7 +42,7 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Process policy-authorized submissions
-        run: npm run worker:process-auto-submissions -- "${{ inputs.max_tasks || '3' }}"
+        run: npm run process-auto-submissions --workspace @remotejobos/worker -- "${{ inputs.max_tasks || '3' }}"
       - name: Upload non-sensitive browser evidence
         if: always()
         uses: actions/upload-artifact@v4
