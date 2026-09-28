@@ -436,3 +436,105 @@ h1 { font-size: 30px; margin: 0; letter-spacing: -.04em; }
   .answerCard { grid-template-columns: 1fr; }
   .historyRow, .mailRow { grid-template-columns: 92px 1fr; }
 }
+
+
+/* Auto-except control center */
+.decision.auto-submit-queued { background: #e6edf3; color: #45627a; }
+.decision.needs-attention { background: #f5ead7; color: #775b28; }
+.decision.application-received, .decision.recruiter { background: #e6edf3; color: #45627a; }
+.decision.rejection { background: #f4e8e6; color: #824d46; }
+
+.exceptionList, .answerList { display: grid; gap: 12px; }
+.exceptionCard, .answerCard {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 12px;
+  padding: 16px;
+}
+.exceptionHead, .answerHead, .exceptionFooter, .exceptionActions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+.exceptionHead h2, .answerHead h2 { margin: 6px 0 0; font-size: 14px; letter-spacing: -.015em; }
+.exceptionHead p, .answerCard p { margin: 4px 0 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.exceptionHead time { color: var(--muted); font-size: 9px; white-space: nowrap; }
+.exceptionType {
+  display: inline-block;
+  border-radius: 99px;
+  padding: 4px 7px;
+  background: #ecefe9;
+  color: #59615a;
+  font-size: 8px;
+  font-weight: 800;
+}
+.exceptionType.sensitive-answer, .exceptionType.submit-uncertain,
+.exceptionType.retry-exhausted, .exceptionType.captcha {
+  background: #f5ead7;
+  color: #775b28;
+}
+.exceptionDetail { margin: 12px 0; font-size: 11px; line-height: 1.55; color: #4c554e; }
+.exceptionForm, .notificationForm { display: grid; gap: 11px; margin-top: 12px; }
+.exceptionForm label, .notificationForm > label:not(.checkItem) { display: grid; gap: 6px; }
+.exceptionForm label > span, .notificationForm label > span { font-size: 10px; font-weight: 800; color: #4f5750; }
+.exceptionForm input, .exceptionForm textarea, .exceptionForm select,
+.notificationForm input, .notificationForm textarea, .notificationForm select {
+  width: 100%;
+  border: 1px solid #d1d5cf;
+  border-radius: 8px;
+  background: white;
+  color: var(--ink);
+  padding: 10px 11px;
+  font: inherit;
+  font-size: 11px;
+}
+.exceptionActions { justify-content: flex-start; margin-top: 12px; flex-wrap: wrap; }
+.exceptionFooter { align-items: center; margin-top: 13px; }
+.exceptionHistory { margin-top: 14px; }
+.historyRow { display: grid; grid-template-columns: 90px 1fr; gap: 10px; padding: 9px 0; border-bottom: 1px solid #e8eae5; }
+.historyRow:last-child { border-bottom: 0; }
+.historyRow b, .historyRow small { display: block; }
+.historyRow b { font-size: 10px; }
+.historyRow small { color: var(--muted); font-size: 9px; margin-top: 2px; }
+
+.answerComposer { margin-bottom: 12px; }
+.answerCard { display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; }
+.answerMain { min-width: 0; flex: 1; }
+
+.gmailGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.connectionRows { display: grid; gap: 9px; }
+.connectionRows > div { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid #e8eae5; padding-bottom: 8px; font-size: 10px; }
+.connectionRows span { color: var(--muted); }
+.connectionRows b { text-align: right; }
+.connectionError { color: #824d46; font-size: 10px; line-height: 1.5; }
+.primaryLink {
+  display: inline-block;
+  margin-top: 13px;
+  text-decoration: none;
+  border-radius: 8px;
+  background: var(--dark);
+  color: white;
+  padding: 10px 13px;
+  font-size: 10px;
+  font-weight: 800;
+}
+.inboxPanel { margin-top: 12px; }
+.mailRow { display: grid; grid-template-columns: 115px 1fr; gap: 12px; padding: 11px 0; border-bottom: 1px solid #e8eae5; }
+.mailRow:last-child { border-bottom: 0; }
+.mailRow b, .mailRow small { display: block; }
+.mailRow b { font-size: 11px; }
+.mailRow small { color: var(--muted); font-size: 9px; margin-top: 3px; }
+.mailRow p { margin: 5px 0 0; color: #5c645d; font-size: 10px; line-height: 1.45; }
+
+.analyticsGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.analyticsRow { display: flex; justify-content: space-between; gap: 16px; padding: 10px 0; border-bottom: 1px solid #e8eae5; font-size: 10px; text-transform: capitalize; }
+.analyticsRow:last-child { border-bottom: 0; }
+.analyticsRow span { color: #525a53; }
+.analyticsRow b { font-size: 11px; }
+
+@media (max-width: 780px) {
+  .gmailGrid, .analyticsGrid { grid-template-columns: 1fr; }
+  .exceptionHead, .answerHead, .answerCard { flex-direction: column; }
+  .mailRow { grid-template-columns: 1fr; }
+}
