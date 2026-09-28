@@ -29,6 +29,14 @@ export type GmailMessage = {
   };
 };
 
+export function gmailWorkerConfigured(): boolean {
+  return Boolean(
+    process.env.GOOGLE_GMAIL_CLIENT_ID &&
+    process.env.GOOGLE_GMAIL_CLIENT_SECRET &&
+    process.env.GMAIL_TOKEN_ENCRYPTION_KEY
+  );
+}
+
 function oauthEnv() {
   const clientId = process.env.GOOGLE_GMAIL_CLIENT_ID ?? "";
   const clientSecret = process.env.GOOGLE_GMAIL_CLIENT_SECRET ?? "";
