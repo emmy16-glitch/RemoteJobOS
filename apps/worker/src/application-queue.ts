@@ -122,7 +122,7 @@ async function notifySubmitted(applicationId: string): Promise<void> {
   await queueNotification({
     applicationId,
     kind: "submitted",
-    subject: `Application submitted: ${job.company} — ${job.title}`,
+    subject: `RemoteJobOS: application submitted — ${job.company} — ${job.title}`,
     bodyText: [
       "RemoteJobOS submitted and verified your application.",
       "",
