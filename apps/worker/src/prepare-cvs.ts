@@ -41,48 +41,33 @@ async function getJson<T>(path: string): Promise<T> {
       authorization: `Bearer ${config.supabaseServiceRoleKey}`
     }
   });
-  if (!response.ok) throw new Error(`Supabase GET failed: ${response.status} ${await response.text()}`);
+  if (!response.ok) {
+    throw new Error(`Supabase GET failed: ${response.status} ${await response.text()}`);
+  }
   return response.json() as Promise<T>;
 }
 
-export async function prepareCvPlans() {
-  if (!hasSupabase()) {
-    console.log("[cv] Supabase is not configured; skipping CV planning.");
-    return 0;
-  }
-
-  const profiles = await getJson<ProfileRow[]>(
-    "career_profiles?select=id,profile&order=updated_at.desc&limit=1"
-  );
-  const profile = profiles[0];
-  if (!profile) {
-    console.log("[cv] No career profile exists yet.");
-    return 0;
-  }
-
+async function prepareProfileCvPlans(profile: ProfileRow): Promise<number> {
   const facts = profile.profile.facts ?? [];
   if (!facts.length) {
-    console.log("[cv] Career profile has no verified facts yet; refusing to invent CV content.");
+    console.log(`[cv] profile ${profile.id} has no verified facts; skipping.`);
     return 0;
   }
 
   const matches = await getJson<MatchRow[]>(
     `job_matches?select=job_id&profile_id=eq.${encodeURIComponent(profile.id)}&decision=eq.strong-match&order=created_at.desc&limit=100`
   );
-  if (!matches.length) {
-    console.log("[cv] No strong matches need CV planning.");
-    return 0;
-  }
+  if (!matches.length) return 0;
 
   const existing = await getJson<Array<{ job_id: string }>>(
     `cv_versions?select=job_id&profile_id=eq.${encodeURIComponent(profile.id)}&family=not.is.null`
   );
   const existingJobIds = new Set(existing.map((row) => row.job_id));
-  const jobIds = matches.map((row) => row.job_id).filter((id) => !existingJobIds.has(id));
-  if (!jobIds.length) {
-    console.log("[cv] All strong matches already have a CV plan.");
-    return 0;
-  }
+  const jobIds = matches
+    .map((row) => row.job_id)
+    .filter((id) => !existingJobIds.has(id));
+
+  if (!jobIds.length) return 0;
 
   const jobs = await getJson<JobRow[]>(
     `jobs?select=id,source,external_id,title,company,description,apply_url,source_url,posted_at,salary_text,location_text,remote,remote_scope,role_family,tags&id=in.(${jobIds.join(",")})`
@@ -131,10 +116,7 @@ export async function prepareCvPlans() {
     }];
   });
 
-  if (!rows.length) {
-    console.log("[cv] No CV plans had verified relevant facts.");
-    return 0;
-  }
+  if (!rows.length) return 0;
 
   const response = await fetch(`${config.supabaseUrl}/rest/v1/cv_versions`, {
     method: "POST",
@@ -147,8 +129,32 @@ export async function prepareCvPlans() {
     body: JSON.stringify(rows)
   });
 
-  if (!response.ok) throw new Error(`CV plan persistence failed: ${response.status} ${await response.text()}`);
+  if (!response.ok) {
+    throw new Error(`CV plan persistence failed: ${response.status} ${await response.text()}`);
+  }
 
-  console.log(`[cv] prepared ${rows.length} verified-fact CV plans`);
   return rows.length;
+}
+
+export async function prepareCvPlans() {
+  if (!hasSupabase()) {
+    console.log("[cv] Supabase is not configured; skipping CV planning.");
+    return 0;
+  }
+
+  const profiles = await getJson<ProfileRow[]>(
+    "career_profiles?select=id,profile&order=updated_at.desc&limit=1000"
+  );
+  if (!profiles.length) {
+    console.log("[cv] No career profile exists yet.");
+    return 0;
+  }
+
+  let total = 0;
+  for (const profile of profiles) {
+    total += await prepareProfileCvPlans(profile);
+  }
+
+  console.log(`[cv] profiles=${profiles.length}; prepared=${total} verified-fact CV plans`);
+  return total;
 }
