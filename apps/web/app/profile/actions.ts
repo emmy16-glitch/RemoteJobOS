@@ -119,6 +119,9 @@ export async function saveCareerProfile(formData: FormData) {
     redirect("/profile?error=" + encodeURIComponent("Choose at least one target role family."));
   }
 
+  const autonomyMode =
+    text(formData, "autonomyMode") === "review" ? "review" : "auto-except";
+
   const seniorityTarget = text(formData, "seniorityTarget") || "any";
   const seniorityMode = seniorityTarget === "any" ? "any" : "capped";
   const maxSeniority = seniorities.has(seniorityTarget)
@@ -186,7 +189,7 @@ export async function saveCareerProfile(formData: FormData) {
           ? previous.settings as Record<string, unknown>
           : {}
       ),
-      autonomyMode: "review"
+      autonomyMode
     }
   };
 
