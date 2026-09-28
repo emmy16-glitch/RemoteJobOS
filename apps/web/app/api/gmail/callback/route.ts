@@ -25,16 +25,28 @@ function safeStateEqual(expected: string, actual: string): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+function publicBaseUrl(request: NextRequest) {
+  const env = gmailOAuthEnv();
+  if (env.redirectUri) {
+    return new URL(env.redirectUri).origin;
+  }
+  return new URL(request.url).origin;
+}
+
 function redirectWithError(request: NextRequest, message: string) {
   return NextResponse.redirect(
-    new URL("/inbox?error=" + encodeURIComponent(message), request.url)
+    new URL(
+      "/inbox?error=" + encodeURIComponent(message),
+      publicBaseUrl(request)
+    ),
+    302
   );
 }
 
 export async function GET(request: NextRequest) {
   const userId = await authenticatedUserId();
   if (!userId) {
-    return NextResponse.redirect(new URL("/login?next=/inbox", request.url));
+    return NextResponse.redirect(new URL("/login?next=/inbox", publicBaseUrl(request)), 302);
   }
 
   const returnedError = request.nextUrl.searchParams.get("error");
@@ -145,7 +157,7 @@ export async function GET(request: NextRequest) {
   });
 
   const response = NextResponse.redirect(
-    new URL("/inbox?connected=1", request.url),
+    new URL("/inbox?connected=1", publicBaseUrl(request)),
     302
   );
   response.cookies.delete("remotejobos_gmail_oauth_state");
