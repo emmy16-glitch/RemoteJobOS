@@ -337,7 +337,7 @@ export async function observeApplicationRun(
 
 function pipelinePhase(stage: string): HarnessRunPhase {
   if (stage === "detect") return "assemble";
-  if (stage === "scan") return "scan";
+  if (stage === "scan" || stage === "advance") return "scan";
   if (stage === "plan") return "plan";
   if (stage === "fill") return "fill";
   if (stage === "verify") return "verify";
