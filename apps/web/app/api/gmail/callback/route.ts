@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { authenticatedUserId } from "../../../../lib/auth";
-import { createAdminSupabaseClient } from "../../../../lib/supabase/admin";
+import { createServerSupabaseClient } from "../../../../lib/supabase/server";
 import { encryptGmailRefreshToken } from "../../../../lib/gmail/crypto";
 import { gmailOAuthEnv } from "../../../../lib/gmail/env";
 
@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
 
   const gmailProfile = (await gmailProfileResponse.json()) as GmailProfile;
   const encrypted = encryptGmailRefreshToken(tokens.refresh_token);
-  const supabase = createAdminSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { error } = await supabase
     .from("gmail_connections")
