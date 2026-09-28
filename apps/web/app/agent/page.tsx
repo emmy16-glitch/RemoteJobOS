@@ -1,7 +1,7 @@
 import { Sidebar } from "../components/sidebar";
 import { requireDashboardUser } from "../../lib/page-auth";
 import { latestProfileForUser } from "../../lib/profile";
-import { createAdminSupabaseClient } from "../../lib/supabase/admin";
+import { createServerSupabaseClient } from "../../lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -57,7 +57,7 @@ function pretty(value: string) {
 export default async function AgentPage() {
   const userId = await requireDashboardUser("/agent");
   const profile = await latestProfileForUser(userId);
-  const supabase = createAdminSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data: sourceData, error: sourceError } = await supabase
     .from("job_source_state")
