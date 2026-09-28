@@ -45,6 +45,7 @@ export default async function AnalyticsPage() {
   }
 
   const supabase = createAdminSupabaseClient();
+
   const [appResult, matchResult] = await Promise.all([
     supabase
       .from("applications")
@@ -58,6 +59,17 @@ export default async function AnalyticsPage() {
 
   if (appResult.error) throw new Error(appResult.error.message);
   if (matchResult.error) throw new Error(matchResult.error.message);
+
+  const applications = (appResult.data ?? []) as ApplicationRow[];
+  const applicationIds = applications.map((row) => row.id);
+  const exceptionResult = applicationIds.length
+    ? await supabase
+        .from("application_exceptions")
+        .select("status,exception_type")
+        .in("application_id", applicationIds)
+    : { data: [], error: null };
+
+  if (exceptionResult.error) throw new Error(exceptionResult.error.message);
 
   const applications = (appResult.data ?? []) as ApplicationRow[];
   const matches = (matchResult.data ?? []) as MatchRow[];
