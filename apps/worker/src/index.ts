@@ -4,6 +4,7 @@ import { prepareCvPlans } from "./prepare-cvs.js";
 import { syncApplications, processApplicationTasks } from "./application-queue.js";
 import { runOneApplication, type ApplicationRunMode } from "./apply/run-one.js";
 import { config, hasOptionalEnrichment, hasSupabase } from "./config.js";
+import { decideHarnessApproval } from "./agent-harness.js";
 
 const command = process.argv[2] ?? "health";
 
@@ -24,6 +25,15 @@ if (command === "discover") {
   const outcome = await runOneApplication(applicationId, mode);
   console.log(JSON.stringify(outcome, null, 2));
   if (outcome.status === "failed") process.exitCode = 1;
+} else if (command === "decide-approval") {
+  const approvalId = process.argv[3] ?? "";
+  const decision = process.argv[4];
+  if (!approvalId) throw new Error("approvalId is required");
+  if (decision !== "approved" && decision !== "denied") {
+    throw new Error("decision must be approved or denied");
+  }
+  const result = await decideHarnessApproval(approvalId, decision);
+  console.log(JSON.stringify(result, null, 2));
 } else if (command === "health") {
   console.log(JSON.stringify({
     ok: true,

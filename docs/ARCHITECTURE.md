@@ -87,3 +87,84 @@ Any direct code reuse from an external project must be license-reviewed before i
 ## Free-first infrastructure
 
 The foundation is designed for a public GitHub repository, GitHub Actions scheduled workers, Supabase Free, and free static/web hosting. Free-tier quotas can change, so no business-critical guarantee should depend on a provider remaining free forever.
+
+
+## Durable agent harness
+
+RemoteJobOS wraps application automation in a deterministic harness instead of
+letting a model or browser worker own lifecycle state.
+
+The design borrows the strongest general-purpose ideas from the open-source
+Company Brain harness while keeping RemoteJobOS on its existing Supabase +
+GitHub Actions architecture:
+
+- durable run state and checkpoints;
+- explicit step budgets;
+- progressive tool-family exposure by phase;
+- deterministic result verification;
+- one persisted salvage pass from durable evidence;
+- approval suspension and resumption on the same run;
+- recovery rules that distinguish safe restarts from ambiguous post-submit
+  states.
+
+The application lifecycle is:
+
+```
+application-review task
+        ↓
+durable agent_run
+        ↓
+context / CV checkpoints
+        ↓
+scan → plan → fill → verify
+        ↓
+result verifier
+        ↓
+verified dry-run
+        ↓
+agent_approval (pending)
+        ↓
+same run suspended
+        ↓
+explicit approval
+        ↓
+application-submit task references same run
+        ↓
+fresh browser session
+        ↓
+fence → submit → confirm
+        ↓
+durable confirmation
+        ↓
+completed run
+```
+
+A process crash before the submission fence is classified as `safe-restart`.
+The task lease may expire and another worker can restart the application from a
+safe browser boundary using persisted run context.
+
+A crash or uncertain outcome after `submission_fenced_at` is different:
+RemoteJobOS marks the run `manual-reconcile` and refuses automatic retry.
+This prevents a recovery mechanism from turning into a duplicate job
+application.
+
+Tool families are intentionally phase-scoped:
+
+```
+context   → profile
+cv        → profile + CV renderer
+scan      → browser
+plan      → profile + browser
+fill      → profile + CV + browser
+verify    → browser + evidence
+approval  → evidence only
+fence     → policy
+submit    → browser + policy + submission
+confirm   → browser + submission + confirmation + evidence
+finalize  → evidence + tracking
+```
+
+The current scheduled review workflow remains dry-run only. Live submission is
+not enabled automatically. A separate manual workflow requires an explicit
+approval ID and an explicit live-submission confirmation before setting
+`REMOTEJOBOS_ALLOW_SUBMIT=true`.

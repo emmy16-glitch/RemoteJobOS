@@ -1,0 +1,61 @@
+name: Submit approved application
+
+on:
+  workflow_dispatch:
+    inputs:
+      approval_id:
+        description: "Pending RemoteJobOS approval UUID"
+        required: true
+        type: string
+      confirm_live_submission:
+        description: "Explicit confirmation"
+        required: true
+        default: "NO"
+        type: choice
+        options:
+          - "NO"
+          - "YES - submit the approved application"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: approved-application-${{ inputs.approval_id }}
+  cancel-in-progress: false
+
+jobs:
+  submit:
+    if: inputs.confirm_live_submission == 'YES - submit the approved application'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      REMOTEJOBOS_ALLOW_SUBMIT: "true"
+      REMOTEJOBOS_MAX_REVIEW_TASKS: "1"
+      ENRICHMENT_PROVIDER: none
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Verify required cloud secrets
+        shell: bash
+        run: |
+          test -n "$SUPABASE_URL"
+          test -n "$SUPABASE_SERVICE_ROLE_KEY"
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Approve the suspended durable run
+        run: npm run worker:decide-approval -- "${{ inputs.approval_id }}" approved
+      - name: Resume the same run and submit
+        run: npm run worker:process-application-tasks
+      - name: Upload non-sensitive browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: approved-application-evidence-${{ github.run_id }}
+          path: artifacts/screenshots/
+          if-no-files-found: ignore
+          retention-days: 7

@@ -16,7 +16,8 @@
     "test": "npm run test --workspace @remotejobos/core",
     "worker:prepare-cvs": "npm run prepare-cvs --workspace @remotejobos/worker",
     "worker:sync-applications": "npm run sync-applications --workspace @remotejobos/worker",
-    "worker:process-application-tasks": "npm run process-application-tasks --workspace @remotejobos/worker"
+    "worker:process-application-tasks": "npm run process-application-tasks --workspace @remotejobos/worker",
+    "worker:decide-approval": "npm run decide-approval --workspace @remotejobos/worker"
   },
   "engines": {
     "node": ">=22"

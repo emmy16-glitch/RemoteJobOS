@@ -305,3 +305,46 @@ test("classifies job lifecycle emails without an AI provider", async () => {
     "rejection"
   );
 });
+
+
+test("harness exposes progressive tool families by phase", async () => {
+  const {
+    toolFamiliesForPhase,
+    recoveryDisposition,
+    canStartHarnessStep,
+    remainingHarnessSteps
+  } = await import("../src/harness.ts");
+
+  assert.deepEqual(toolFamiliesForPhase("scan"), ["browser"]);
+  assert.deepEqual(
+    toolFamiliesForPhase("submit"),
+    ["browser", "policy", "submission"]
+  );
+  assert.equal(canStartHarnessStep({ used: 4, limit: 5 }), true);
+  assert.equal(canStartHarnessStep({ used: 5, limit: 5 }), false);
+  assert.equal(remainingHarnessSteps({ used: 4, limit: 5 }), 1);
+  assert.equal(
+    recoveryDisposition({
+      submissionFencedAt: null,
+      submittedAt: null,
+      confirmationVerifiedAt: null
+    }),
+    "safe-restart"
+  );
+  assert.equal(
+    recoveryDisposition({
+      submissionFencedAt: "2026-09-28T00:00:00Z",
+      submittedAt: null,
+      confirmationVerifiedAt: null
+    }),
+    "manual-reconcile"
+  );
+  assert.equal(
+    recoveryDisposition({
+      submissionFencedAt: "2026-09-28T00:00:00Z",
+      submittedAt: "2026-09-28T00:01:00Z",
+      confirmationVerifiedAt: "2026-09-28T00:02:00Z"
+    }),
+    "already-complete"
+  );
+});

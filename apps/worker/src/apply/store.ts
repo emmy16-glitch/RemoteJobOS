@@ -41,7 +41,15 @@ async function profileForApplication(applicationId: string): Promise<CareerProfi
   return profiles[0]?.profile ?? {};
 }
 
+export type ApplicationStageObserver = (event: {
+  stage: string;
+  status: "started" | "blocked" | "failed" | "verified" | "submitted" | "unknown";
+  report?: Record<string, unknown>;
+  error?: string;
+}) => Promise<void>;
+
 export class SupabaseApplicationStore implements ApplicationStore {
+  constructor(private readonly stageObserver?: ApplicationStageObserver) {}
   async getVerifiedAnswers(applicationId: string): Promise<Record<string, string>> {
     return (await profileForApplication(applicationId)).verifiedAnswers ?? {};
   }
@@ -110,6 +118,13 @@ export class SupabaseApplicationStore implements ApplicationStore {
         message: `Application stage ${stage}: ${status}`,
         metadata: { attemptId, stage, status, ...report, error: error ?? null }
       })
+    });
+
+    await this.stageObserver?.({
+      stage,
+      status,
+      report,
+      error
     });
   }
 
