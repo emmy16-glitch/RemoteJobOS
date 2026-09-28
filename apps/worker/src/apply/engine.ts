@@ -22,7 +22,16 @@ export type PipelineOutcome =
     }
   | { status: "dry-run-verified"; attemptId: string }
   | { status: "submitted"; attemptId: string; confirmed: boolean }
-  | { status: "blocked"; attemptId: string; reason: string }
+  | {
+      status: "blocked";
+      attemptId: string;
+      reason: string;
+      issues?: Array<{
+        fieldKey: string;
+        code: string;
+        message: string;
+      }>;
+    }
   | {
       status: "failed";
       attemptId: string;
@@ -112,7 +121,8 @@ export async function runApplicationPipeline(
       return {
         status: "blocked",
         attemptId,
-        reason: `Verification failed with ${verification.issues.length} issue(s)`
+        reason: `Verification failed with ${verification.issues.length} issue(s)`,
+        issues: verification.issues
       };
     }
 
