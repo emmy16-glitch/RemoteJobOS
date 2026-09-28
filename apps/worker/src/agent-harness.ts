@@ -298,6 +298,30 @@ export async function checkpointApplicationRun(
   return { ...updated, active_tool_families: asArray(updated.active_tool_families) };
 }
 
+export async function observeApplicationRun(
+  runId: string,
+  phase: HarnessRunPhase,
+  snapshot: Record<string, unknown> = {}
+): Promise<void> {
+  const run = await loadRun(runId);
+  const checkpoint = {
+    ...(run.checkpoint ?? {}),
+    ...snapshot,
+    observedPhase: phase,
+    observedAt: new Date().toISOString()
+  };
+
+  await request(`agent_runs?id=eq.${encodeURIComponent(runId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      checkpoint,
+      updated_at: new Date().toISOString()
+    })
+  });
+
+  await writeCheckpoint(run, phase, run.status, checkpoint);
+}
+
 function pipelinePhase(stage: string): HarnessRunPhase {
   if (stage === "detect") return "assemble";
   if (stage === "scan") return "scan";
@@ -318,17 +342,18 @@ export function createHarnessStageObserver(runId: string) {
     error?: string;
   }): Promise<void> => {
     const phase = pipelinePhase(event.stage);
-    await checkpointApplicationRun(
-      runId,
-      phase,
-      {
-        pipelineStage: event.stage,
-        pipelineStatus: event.status,
-        report: event.report ?? {},
-        error: event.error ?? null
-      },
-      event.status === "started"
-    );
+    const snapshot = {
+      pipelineStage: event.stage,
+      pipelineStatus: event.status,
+      report: event.report ?? {},
+      error: event.error ?? null
+    };
+
+    if (event.status === "started") {
+      await checkpointApplicationRun(runId, phase, snapshot, true);
+    } else {
+      await observeApplicationRun(runId, phase, snapshot);
+    }
   };
 }
 
