@@ -609,6 +609,52 @@ export async function requestSubmissionApproval(args: {
   return approval;
 }
 
+async function ensureApprovedSubmissionTask(
+  approval: ApprovalRow
+): Promise<void> {
+  await request(`agent_runs?id=eq.${encodeURIComponent(approval.run_id)}&status=neq.completed`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      status: "pending",
+      mode: "submit",
+      phase: "fence",
+      active_tool_families: toolFamiliesForPhase("fence"),
+      checkpoint: {
+        approvalId: approval.id,
+        decision: "approved",
+        resumePhase: "fence",
+        checkpointedAt: new Date().toISOString()
+      },
+      updated_at: new Date().toISOString()
+    })
+  });
+
+  await request("agent_tasks?on_conflict=idempotency_key", {
+    method: "POST",
+    headers: { prefer: "resolution=ignore-duplicates,return=minimal" },
+    body: JSON.stringify({
+      task_type: "application-submit",
+      payload: {
+        applicationId: approval.application_id,
+        runId: approval.run_id,
+        approvalId: approval.id
+      },
+      status: "pending",
+      priority: 40,
+      max_attempts: 3,
+      idempotency_key: `application-submit:${approval.run_id}:${approval.id}`
+    })
+  });
+
+  await request(`applications?id=eq.${encodeURIComponent(approval.application_id)}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      next_action: "Submission approved and queued on the same durable run.",
+      updated_at: new Date().toISOString()
+    })
+  });
+}
+
 export async function decideHarnessApproval(
   approvalId: string,
   decision: "approved" | "denied",
@@ -621,6 +667,9 @@ export async function decideHarnessApproval(
   if (!approval) throw new Error(`Approval not found: ${approvalId}`);
 
   if (approval.status === "approved" && decision === "approved") {
+    // Idempotent replay: recreate the task if a previous worker died after the
+    // approval row changed but before the submit task was persisted.
+    await ensureApprovedSubmissionTask(approval);
     return approval;
   }
   if (approval.status === "denied" && decision === "denied") {
@@ -676,48 +725,7 @@ export async function decideHarnessApproval(
     return updated;
   }
 
-  await request(`agent_runs?id=eq.${encodeURIComponent(updated.run_id)}`, {
-    method: "PATCH",
-    body: JSON.stringify({
-      status: "pending",
-      mode: "submit",
-      phase: "fence",
-      active_tool_families: toolFamiliesForPhase("fence"),
-      checkpoint: {
-        approvalId,
-        decision,
-        resumePhase: "fence",
-        checkpointedAt: new Date().toISOString()
-      },
-      updated_at: new Date().toISOString()
-    })
-  });
-
-  await request("agent_tasks?on_conflict=idempotency_key", {
-    method: "POST",
-    headers: { prefer: "resolution=ignore-duplicates,return=minimal" },
-    body: JSON.stringify({
-      task_type: "application-submit",
-      payload: {
-        applicationId: updated.application_id,
-        runId: updated.run_id,
-        approvalId
-      },
-      status: "pending",
-      priority: 40,
-      max_attempts: 3,
-      idempotency_key: `application-submit:${updated.run_id}:${approvalId}`
-    })
-  });
-
-  await request(`applications?id=eq.${encodeURIComponent(updated.application_id)}`, {
-    method: "PATCH",
-    body: JSON.stringify({
-      next_action: "Submission approved and queued on the same durable run.",
-      updated_at: new Date().toISOString()
-    })
-  });
-
+  await ensureApprovedSubmissionTask(updated);
   return updated;
 }
 
