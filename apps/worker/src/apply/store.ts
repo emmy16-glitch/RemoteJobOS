@@ -144,6 +144,17 @@ export class SupabaseApplicationStore implements ApplicationStore {
     return rows.length === 1;
   }
 
+  async releaseSubmissionFence(applicationId: string, attemptId: string): Promise<boolean> {
+    const released = await request<boolean>("rpc/release_submission_fence", {
+      method: "POST",
+      body: JSON.stringify({
+        p_application_id: applicationId,
+        p_attempt_id: attemptId
+      })
+    });
+    return released === true;
+  }
+
   async markSubmitted(applicationId: string, confirmation: ConfirmationResult): Promise<void> {
     await request(`applications?id=eq.${encodeURIComponent(applicationId)}`, {
       method: "PATCH",
