@@ -4,7 +4,6 @@ import { authenticatedUserId } from "../lib/auth";
 import { getDashboardData } from "../lib/dashboard-data";
 import { publicSupabaseEnv, serverSupabaseEnv } from "../lib/supabase/env";
 import { Sidebar } from "./components/sidebar";
-import { Sidebar } from "./components/sidebar";
 
 export const dynamic = "force-dynamic";
 
