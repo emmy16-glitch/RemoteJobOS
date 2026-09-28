@@ -4,6 +4,7 @@ import { authenticatedUserId } from "../lib/auth";
 import { getDashboardData } from "../lib/dashboard-data";
 import { publicSupabaseEnv, serverSupabaseEnv } from "../lib/supabase/env";
 import { Sidebar } from "./components/sidebar";
+import { Sidebar } from "./components/sidebar";
 
 export const dynamic = "force-dynamic";
 
@@ -146,9 +147,9 @@ export default async function Home() {
             detail="Only blockers that require you"
           />
           <Metric
-            label="Applications"
-            value={data.applications.toLocaleString()}
-            detail={data.applied + " confirmed submitted"}
+            label="Confirmed applied"
+            value={data.applied.toLocaleString()}
+            detail={data.autoSubmitQueued + " currently queued to auto-submit"}
           />
         </section>
 
