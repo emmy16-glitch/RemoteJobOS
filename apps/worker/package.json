@@ -6,13 +6,13 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "discover": "tsx src/index.ts discover",
-    "health": "tsx src/index.ts health",
-    "match": "tsx src/index.ts match",
-    "prepare-cvs": "tsx src/index.ts prepare-cvs",
-    "apply-one": "tsx src/index.ts apply-one",
-    "sync-applications": "tsx src/index.ts sync-applications",
-    "process-application-tasks": "tsx src/index.ts process-application-tasks"
+    "discover": "npm run build --workspace @remotejobos/core && tsx src/index.ts discover",
+    "health": "npm run build --workspace @remotejobos/core && tsx src/index.ts health",
+    "match": "npm run build --workspace @remotejobos/core && tsx src/index.ts match",
+    "prepare-cvs": "npm run build --workspace @remotejobos/core && tsx src/index.ts prepare-cvs",
+    "apply-one": "npm run build --workspace @remotejobos/core && tsx src/index.ts apply-one",
+    "sync-applications": "npm run build --workspace @remotejobos/core && tsx src/index.ts sync-applications",
+    "process-application-tasks": "npm run build --workspace @remotejobos/core && tsx src/index.ts process-application-tasks"
   },
   "dependencies": {
     "@remotejobos/core": "*",
