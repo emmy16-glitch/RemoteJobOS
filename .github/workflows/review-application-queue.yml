@@ -34,6 +34,11 @@ jobs:
         with:
           node-version: 22
       - run: npm install
+      - name: Verify required cloud secrets
+        shell: bash
+        run: |
+          test -n "$SUPABASE_URL"
+          test -n "$SUPABASE_SERVICE_ROLE_KEY"
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Process leased application dry-run tasks
