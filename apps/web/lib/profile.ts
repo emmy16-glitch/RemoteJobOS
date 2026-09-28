@@ -1,5 +1,5 @@
 import "server-only";
-import { createAdminSupabaseClient } from "./supabase/admin";
+import { createServerSupabaseClient } from "./supabase/server";
 
 type CareerProfileRow = {
   id: string;
@@ -9,7 +9,7 @@ type CareerProfileRow = {
 };
 
 async function readLatestProfile(
-  supabase: ReturnType<typeof createAdminSupabaseClient>,
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
   userId: string
 ): Promise<CareerProfileRow | null> {
   const { data, error } = await supabase
@@ -25,24 +25,12 @@ async function readLatestProfile(
 }
 
 export async function latestProfileForUser(userId: string) {
-  const supabase = createAdminSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const existing = await readLatestProfile(supabase, userId);
   if (existing) return existing;
 
-  const { data: authData, error: authError } =
-    await supabase.auth.admin.getUserById(userId);
-
-  if (authError) throw new Error(authError.message);
-
-  const email = authData.user?.email?.trim().toLowerCase();
-  if (!email) return null;
-
   const { data: claimedProfileId, error: claimError } = await supabase.rpc(
-    "claim_profile_onboarding_seed",
-    {
-      p_user_id: userId,
-      p_email: email
-    }
+    "claim_own_profile_onboarding_seed"
   );
 
   if (claimError) throw new Error(claimError.message);
