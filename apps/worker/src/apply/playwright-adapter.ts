@@ -403,6 +403,49 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
     };
   }
 
+  async advanceIfNeeded(context: ApplicationContext): Promise<{
+    advanced: boolean;
+    reason?: string;
+  }> {
+    const page = await this.ensurePage(context);
+
+    if (await page.locator('iframe[src*="recaptcha"], iframe[src*="hcaptcha"], [data-sitekey]').count()) {
+      return { advanced: false, reason: "CAPTCHA detected" };
+    }
+
+    let submit = page.locator('button[type="submit"]:visible, input[type="submit"]:visible').first();
+    if (!(await submit.count())) {
+      submit = page.getByRole("button", { name: /submit application|submit/i }).first();
+    }
+    if (await submit.count() && await submit.isVisible().catch(() => false)) {
+      return { advanced: false, reason: "final-submit-visible" };
+    }
+
+    const nextPatterns = [
+      /^(next|continue)$/i,
+      /^save (and|&) continue$/i,
+      /^continue to (the )?next step$/i,
+      /^review application$/i,
+      /^continue application$/i
+    ];
+
+    for (const pattern of nextPatterns) {
+      const candidate = page.getByRole("button", { name: pattern }).first();
+      if (
+        await candidate.count() &&
+        await candidate.isVisible().catch(() => false) &&
+        !(await candidate.isDisabled().catch(() => true))
+      ) {
+        await candidate.click();
+        await page.waitForLoadState("domcontentloaded", { timeout: 8_000 }).catch(() => undefined);
+        await page.waitForTimeout(700);
+        return { advanced: true, reason: "next-step-button" };
+      }
+    }
+
+    return { advanced: false, reason: "no-safe-next-step" };
+  }
+
   async prepareSubmit(context: ApplicationContext) {
     const page = await this.ensurePage(context);
 
