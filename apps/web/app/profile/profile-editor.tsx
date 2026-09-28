@@ -129,6 +129,45 @@ function FactCard({
         />
       </label>
 
+      <div className="formGrid two">
+        <label>
+          <span>Start date</span>
+          <input
+            value={fact.startDate ?? ""}
+            onChange={(event) => set("startDate", event.target.value || undefined)}
+            placeholder="e.g. 2025"
+          />
+        </label>
+
+        <label>
+          <span>End date</span>
+          <input
+            value={fact.endDate ?? ""}
+            onChange={(event) => set("endDate", event.target.value || undefined)}
+            placeholder="e.g. Present or 2026"
+          />
+        </label>
+
+        <label>
+          <span>Location</span>
+          <input
+            value={fact.location ?? ""}
+            onChange={(event) => set("location", event.target.value || undefined)}
+            placeholder="e.g. Abuja, Nigeria / Remote"
+          />
+        </label>
+
+        <label>
+          <span>Project / evidence URL</span>
+          <input
+            type="url"
+            value={fact.url ?? ""}
+            onChange={(event) => set("url", event.target.value || undefined)}
+            placeholder="https://..."
+          />
+        </label>
+      </div>
+
       <label>
         <span>Verified description</span>
         <textarea
@@ -154,6 +193,41 @@ function FactCard({
             )
           }
           placeholder="Linux, Docker, Playwright, Wireshark"
+        />
+      </label>
+
+      <label>
+        <span>Achievement / responsibility bullets</span>
+        <textarea
+          value={(fact.highlights ?? []).join("\n")}
+          onChange={(event) =>
+            set(
+              "highlights",
+              event.target.value
+                .split("\n")
+                .map((item) => item.trim())
+                .filter(Boolean)
+            )
+          }
+          placeholder={"One verified bullet per line\nBuilt ...\nTested ...\nImproved ..."}
+          rows={4}
+        />
+      </label>
+
+      <label>
+        <span>Technologies</span>
+        <input
+          value={(fact.technologies ?? []).join(", ")}
+          onChange={(event) =>
+            set(
+              "technologies",
+              event.target.value
+                .split(",")
+                .map((item) => item.trim())
+                .filter(Boolean)
+            )
+          }
+          placeholder="React, TypeScript, Docker, LiveKit"
         />
       </label>
 
@@ -246,6 +320,15 @@ export function ProfileEditor({
           </label>
 
           <label>
+            <span>Secondary phone</span>
+            <input
+              name="secondaryPhone"
+              type="tel"
+              defaultValue={inputValue(initial.verifiedAnswers, "secondary phone")}
+            />
+          </label>
+
+          <label>
             <span>Country</span>
             <input
               name="country"
@@ -276,6 +359,16 @@ export function ProfileEditor({
               name="github"
               type="url"
               defaultValue={inputValue(initial.verifiedAnswers, "github")}
+            />
+          </label>
+
+          <label>
+            <span>X / professional social profile</span>
+            <input
+              name="xProfile"
+              type="url"
+              defaultValue={inputValue(initial.verifiedAnswers, "x")}
+              placeholder="https://x.com/..."
             />
           </label>
 
@@ -316,6 +409,16 @@ export function ProfileEditor({
             />
           </label>
         </div>
+
+        <label>
+          <span>Professional summary</span>
+          <textarea
+            name="professionalSummary"
+            defaultValue={inputValue(initial.verifiedAnswers, "professional summary")}
+            placeholder="A concise, verified summary of your professional background. No invented metrics or experience."
+            rows={4}
+          />
+        </label>
       </section>
 
       <section className="formSection">
