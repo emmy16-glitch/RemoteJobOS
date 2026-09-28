@@ -38,7 +38,14 @@ const REVIEW_TASK_TYPE = "application-review";
 const SUBMIT_TASK_TYPE = "application-submit";
 const AUTO_SUBMIT_TASK_TYPE = "application-auto-submit";
 
-type ProfileRow = { id: string };
+type ProfileRow = {
+  id: string;
+  profile?: {
+    settings?: {
+      autonomyMode?: string;
+    };
+  };
+};
 type CvRow = { id: string; job_id: string | null; created_at: string };
 type ApplicationRow = {
   id: string;
@@ -568,7 +575,7 @@ async function syncProfileApplications(profile: ProfileRow): Promise<{
   }
 
   const applications = await request<ApplicationRow[]>(
-    `applications?select=id,job_id,profile_id,cv_version_id,status&profile_id=eq.${encodeURIComponent(profile.id)}&limit=1000`
+    `applications?select=id,job_id,profile_id,cv_version_id,status,autonomy_mode&profile_id=eq.${encodeURIComponent(profile.id)}&limit=1000`
   );
 
   // Before a dry-run starts, keep the application pointed at the newest CV
@@ -591,6 +598,11 @@ async function syncProfileApplications(profile: ProfileRow): Promise<{
 
   const byJob = new Map(applications.map((application) => [application.job_id, application]));
 
+  const autonomyMode =
+    profile.profile?.settings?.autonomyMode === "review"
+      ? "review"
+      : "auto-except";
+
   const rows = [...newestCvByJob.entries()]
     .filter(([jobId]) => !byJob.has(jobId))
     .map(([jobId, cv]) => ({
@@ -598,7 +610,7 @@ async function syncProfileApplications(profile: ProfileRow): Promise<{
       profile_id: profile.id,
       cv_version_id: cv.id,
       status: "cv-prepared",
-      autonomy_mode: "review",
+      autonomy_mode: autonomyMode,
       next_action: "cloud-dry-run"
     }));
 
@@ -651,7 +663,7 @@ export async function syncApplications(): Promise<number> {
   }
 
   const profiles = await request<ProfileRow[]>(
-    "career_profiles?select=id&order=updated_at.desc&limit=1000"
+    "career_profiles?select=id,profile&order=updated_at.desc&limit=1000"
   );
   if (!profiles.length) {
     console.log("[application-queue] No career profile exists yet.");
