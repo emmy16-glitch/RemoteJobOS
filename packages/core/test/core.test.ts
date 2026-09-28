@@ -403,3 +403,33 @@ test("auto-except still blocks unknown required fields without verified answers"
 
   assert.equal(plan[0]?.action.type, "human-review");
 });
+
+
+test("skips optional sensitive questions without interrupting auto-except", async () => {
+  const { buildDeterministicFillPlan } = await import("../src/planner.ts");
+
+  const declinePlan = buildDeterministicFillPlan([
+    {
+      key: "gender",
+      label: "Gender",
+      kind: "select" as const,
+      required: false,
+      sensitive: true,
+      options: ["Woman", "Man", "Prefer not to say"]
+    }
+  ], {});
+
+  assert.deepEqual(declinePlan[0]?.action, { type: "decline" });
+
+  const skipPlan = buildDeterministicFillPlan([
+    {
+      key: "salary",
+      label: "Salary expectations",
+      kind: "text" as const,
+      required: false,
+      sensitive: true
+    }
+  ], {});
+
+  assert.equal(skipPlan[0]?.action.type, "skip");
+});
