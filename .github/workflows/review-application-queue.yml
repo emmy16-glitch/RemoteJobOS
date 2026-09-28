@@ -2,13 +2,13 @@ name: Review application queue
 
 on:
   schedule:
-    - cron: "23 * * * *"
+    - cron: "3,18,33,48 * * * *"
   workflow_dispatch:
     inputs:
       max_tasks:
         description: "Maximum application reviews for this run"
         required: false
-        default: "3"
+        default: "5"
         type: string
 
 permissions:
@@ -25,7 +25,7 @@ jobs:
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      REMOTEJOBOS_MAX_REVIEW_TASKS: ${{ inputs.max_tasks || '3' }}
+      REMOTEJOBOS_MAX_REVIEW_TASKS: ${{ inputs.max_tasks || '5' }}
       REMOTEJOBOS_ALLOW_SUBMIT: "false"
       ENRICHMENT_PROVIDER: none
     steps:
