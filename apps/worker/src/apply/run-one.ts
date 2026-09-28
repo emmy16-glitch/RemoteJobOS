@@ -1,6 +1,9 @@
 import { createDefaultAdapterRegistry } from "./default-adapters.js";
 import { runApplicationPipeline, type PipelineOutcome } from "./engine.js";
-import { SupabaseApplicationStore } from "./store.js";
+import {
+  SupabaseApplicationStore,
+  type ApplicationStageObserver
+} from "./store.js";
 import { config, hasSupabase } from "../config.js";
 import { renderApplicationResume } from "../resume-renderer.js";
 
@@ -91,7 +94,8 @@ export type ApplicationRunMode = "dry-run" | "review" | "submit";
 
 export async function runOneApplication(
   applicationId: string,
-  mode: ApplicationRunMode = "dry-run"
+  mode: ApplicationRunMode = "dry-run",
+  options: { stageObserver?: ApplicationStageObserver } = {}
 ): Promise<PipelineOutcome> {
   if (!applicationId) throw new Error("applicationId is required");
 
@@ -162,7 +166,7 @@ export async function runOneApplication(
       assets: resumePath ? { resume: resumePath } : undefined
     },
     adapter,
-    new SupabaseApplicationStore()
+    new SupabaseApplicationStore(options.stageObserver)
   );
 
   if (outcome.status !== "submitted") {
