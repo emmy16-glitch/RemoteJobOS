@@ -38,11 +38,51 @@ We deliberately borrow architecture ideas rather than coupling the product to on
 - ats-api-reference / ats-job-apis: direct ATS integrations.
 - dyyfk/auto-apply: queue/worker separation.
 - job-application-automation: human-in-the-loop fallback.
-- Resume Matcher / SimplyApply / Bespoke: truthful tailoring.
-- Reactive Resume: ATS-safe document rendering ideas.
 - JobSync / JobTrail / Job Tracker OS: tracking and lifecycle concepts.
 
-Any direct code reuse must be license-reviewed before inclusion.
+### CV engine architecture
+
+RemoteJobOS does **not** embed or depend on another resume application. It adopts the strongest architectural ideas while keeping its own verified-fact and application pipeline:
+
+- **JSON Resume:** structured, portable resume data rather than treating a CV as one large text blob. RemoteJobOS keeps its own schema because it also stores evidence, role-family targeting and application answers, but the separation of content from presentation is the same core idea.
+- **Reactive Resume:** template-driven rendering, clear typography, configurable presentation and a content-first document model. RemoteJobOS keeps a deliberately conservative single-column ATS template for automated applications instead of copying visually complex layouts.
+- **Resume Matcher:** compare the resume against the job description and expose keyword/relevance gaps. RemoteJobOS performs this deterministically before rendering and stores the matched terms in the CV plan.
+- **OpenResume-style ATS engines:** separate resume content, template rendering and ATS analysis. RemoteJobOS mirrors that separation through core planning, worker rendering and quality auditing.
+
+The resulting pipeline is:
+
+```
+verified career facts
+        ↓
+job-specific deterministic ranking
+        ↓
+section-aware fact selection
+        ↓
+quality / relevance audit
+        ↓
+professional single-column template
+        ↓
+A4 Playwright PDF
+        ↓
+private Supabase asset + version history
+        ↓
+human review / application workflow
+```
+
+CV content remains fact-locked. Styling, ordering and wording may change, but no renderer or optional AI provider is allowed to create unsupported employment history, education, certification, metrics or technologies.
+
+The default automated-application template intentionally uses:
+
+- single-column reading order;
+- strong but simple heading hierarchy;
+- bold role and organization labels;
+- generous print spacing;
+- text links instead of icon-only contact information;
+- no skill bars, progress charts, photos, sidebars or decorative columns;
+- 1–2 page compaction when content grows;
+- private PDF storage and deterministic versioning.
+
+Any direct code reuse from an external project must be license-reviewed before inclusion.
 
 ## Free-first infrastructure
 
