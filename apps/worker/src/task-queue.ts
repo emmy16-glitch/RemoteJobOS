@@ -61,3 +61,17 @@ export async function finishTask(
     throw new Error(`Task ${task.id} could not be finished; lease may be stale`);
   }
 }
+
+export async function claimTaskByIdempotencyKey(
+  workerId: string,
+  idempotencyKey: string,
+  leaseSeconds = 900
+): Promise<ClaimedTask | null> {
+  const rows = await rpc<ClaimedTask[]>("claim_agent_task_by_key", {
+    p_worker_id: workerId,
+    p_idempotency_key: idempotencyKey,
+    p_lease_seconds: leaseSeconds
+  });
+
+  return rows[0] ?? null;
+}

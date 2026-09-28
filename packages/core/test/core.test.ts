@@ -312,7 +312,11 @@ test("harness exposes progressive tool families by phase", async () => {
     toolFamiliesForPhase,
     recoveryDisposition,
     canStartHarnessStep,
-    remainingHarnessSteps
+    remainingHarnessSteps,
+    toolFamilyAllowed,
+    assertToolFamilyAllowed,
+    retryDelayMs,
+    DEFAULT_SAFE_SUBMIT_RETRIES
   } = await import("../src/harness.ts");
 
   assert.deepEqual(toolFamiliesForPhase("scan"), ["browser"]);
@@ -320,6 +324,15 @@ test("harness exposes progressive tool families by phase", async () => {
     toolFamiliesForPhase("submit"),
     ["browser", "policy", "submission"]
   );
+  assert.equal(toolFamilyAllowed("scan", "browser"), true);
+  assert.equal(toolFamilyAllowed("scan", "submission"), false);
+  assert.throws(
+    () => assertToolFamilyAllowed("approval", "submission"),
+    /policy denied/i
+  );
+  assert.equal(DEFAULT_SAFE_SUBMIT_RETRIES, 3);
+  assert.equal(retryDelayMs(1), 1000);
+  assert.equal(retryDelayMs(2), 2000);
   assert.equal(canStartHarnessStep({ used: 4, limit: 5 }), true);
   assert.equal(canStartHarnessStep({ used: 5, limit: 5 }), false);
   assert.equal(remainingHarnessSteps({ used: 4, limit: 5 }), 1);

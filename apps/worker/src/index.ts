@@ -1,7 +1,11 @@
 import { discoverJobs } from "./discover.js";
 import { matchJobs } from "./match.js";
 import { prepareCvPlans } from "./prepare-cvs.js";
-import { syncApplications, processApplicationTasks } from "./application-queue.js";
+import {
+  syncApplications,
+  processApplicationTasks,
+  processApprovedSubmission
+} from "./application-queue.js";
 import { runOneApplication, type ApplicationRunMode } from "./apply/run-one.js";
 import { config, hasOptionalEnrichment, hasSupabase } from "./config.js";
 import { decideHarnessApproval } from "./agent-harness.js";
@@ -34,6 +38,11 @@ if (command === "discover") {
   }
   const result = await decideHarnessApproval(approvalId, decision);
   console.log(JSON.stringify(result, null, 2));
+} else if (command === "process-approved-submission") {
+  const approvalId = process.argv[3] ?? "";
+  if (!approvalId) throw new Error("approvalId is required");
+  const processed = await processApprovedSubmission(approvalId);
+  console.log(JSON.stringify({ processed, approvalId }, null, 2));
 } else if (command === "health") {
   console.log(JSON.stringify({
     ok: true,

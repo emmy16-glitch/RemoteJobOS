@@ -10,10 +10,19 @@ export interface ApplicationContext {
   workerId: string;
   dryRun: boolean;
   assets?: Record<string, string>;
+  beforeSubmitAttempt?: () => Promise<number | null>;
+}
+
+export interface SubmitPreparationResult {
+  ready: boolean;
+  retryable: boolean;
+  reason?: string;
 }
 
 export interface SubmitResult {
   submitted: boolean;
+  sideEffectStarted: boolean;
+  retryable: boolean;
   url?: string;
   message?: string;
 }
@@ -30,6 +39,7 @@ export interface ApplicationAdapter {
   scan(context: ApplicationContext): Promise<ApplicationField[]>;
   fill(context: ApplicationContext, plan: FillPlanEntry[]): Promise<void>;
   verify(context: ApplicationContext, plan: FillPlanEntry[]): Promise<VerificationReport>;
+  prepareSubmit?(context: ApplicationContext): Promise<SubmitPreparationResult>;
   submit(context: ApplicationContext): Promise<SubmitResult>;
   confirm(context: ApplicationContext): Promise<ConfirmationResult>;
   screenshot?(context: ApplicationContext, label: string): Promise<string | undefined>;
@@ -49,6 +59,7 @@ export interface ApplicationStore {
     error?: string
   ): Promise<void>;
   fenceSubmission(applicationId: string, attemptId: string): Promise<boolean>;
+  releaseSubmissionFence(applicationId: string, attemptId: string): Promise<boolean>;
   markSubmitted(
     applicationId: string,
     confirmation: ConfirmationResult

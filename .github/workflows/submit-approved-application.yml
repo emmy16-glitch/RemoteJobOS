@@ -48,9 +48,9 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Approve the suspended durable run
-        run: npm run worker:decide-approval -- "${{ inputs.approval_id }}" approved
-      - name: Resume the same run and submit
-        run: npm run worker:process-application-tasks
+        run: npm run decide-approval --workspace @remotejobos/worker -- "${{ inputs.approval_id }}" approved
+      - name: Resume this exact approved run and submit
+        run: npm run process-approved-submission --workspace @remotejobos/worker -- "${{ inputs.approval_id }}"
       - name: Upload non-sensitive browser evidence
         if: always()
         uses: actions/upload-artifact@v4

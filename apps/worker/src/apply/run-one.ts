@@ -95,7 +95,10 @@ export type ApplicationRunMode = "dry-run" | "review" | "submit";
 export async function runOneApplication(
   applicationId: string,
   mode: ApplicationRunMode = "dry-run",
-  options: { stageObserver?: ApplicationStageObserver } = {}
+  options: {
+    stageObserver?: ApplicationStageObserver;
+    beforeSubmitAttempt?: () => Promise<number | null>;
+  } = {}
 ): Promise<PipelineOutcome> {
   if (!applicationId) throw new Error("applicationId is required");
 
@@ -163,7 +166,8 @@ export async function runOneApplication(
       jobUrl: job.apply_url,
       workerId,
       dryRun: !submitEnabled,
-      assets: resumePath ? { resume: resumePath } : undefined
+      assets: resumePath ? { resume: resumePath } : undefined,
+      beforeSubmitAttempt: options.beforeSubmitAttempt
     },
     adapter,
     new SupabaseApplicationStore(options.stageObserver)
