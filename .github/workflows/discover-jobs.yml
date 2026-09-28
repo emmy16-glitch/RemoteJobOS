@@ -19,7 +19,7 @@ jobs:
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      REMOTEJOBOS_DRY_RUN: ${{ secrets.SUPABASE_URL == '' && 'true' || 'false' }}
+      REMOTEJOBOS_DRY_RUN: "false"
       ENRICHMENT_PROVIDER: none
     steps:
       - uses: actions/checkout@v4
@@ -27,5 +27,10 @@ jobs:
         with:
           node-version: 22
       - run: npm install
+      - name: Verify required cloud secrets
+        shell: bash
+        run: |
+          test -n "$SUPABASE_URL"
+          test -n "$SUPABASE_SERVICE_ROLE_KEY"
       - name: Discover and normalize
         run: npm run worker:discover
