@@ -4,8 +4,8 @@ import type {
   VerifiedCareerFact
 } from "@remotejobos/core";
 import { authenticatedUserId } from "../../lib/auth";
-import { createServerSupabaseClient } from "../../lib/supabase/server";
 import { publicSupabaseEnv } from "../../lib/supabase/env";
+import { latestProfileForUser } from "../../lib/profile";
 import { ProfileEditor, type EditableProfile } from "./profile-editor";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +13,7 @@ export const dynamic = "force-dynamic";
 type StoredProfile = {
   skills?: string[];
   roleFamilies?: RoleFamily[];
+  seniorityMode?: "any" | "capped";
   maxSeniority?: "intern" | "entry" | "junior" | "mid" | "senior";
   blockedRequirements?: string[];
   verifiedAnswers?: Record<string, string>;
@@ -29,14 +30,7 @@ export default async function ProfilePage({
   const userId = await authenticatedUserId();
   if (!userId) redirect("/login?next=/profile");
 
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase
-    .from("career_profiles")
-    .select("display_name,profile")
-    .eq("owner_id", userId)
-    .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const data = await latestProfileForUser(userId);
 
   const params = await searchParams;
   const stored =
@@ -57,7 +51,8 @@ export default async function ProfilePage({
       "it-support",
       "networking"
     ],
-    maxSeniority: stored.maxSeniority ?? "junior",
+    seniorityMode: stored.seniorityMode ?? "any",
+    maxSeniority: stored.maxSeniority ?? "senior",
     blockedRequirements: stored.blockedRequirements ?? [],
     verifiedAnswers: stored.verifiedAnswers ?? {},
     facts: stored.facts ?? []
@@ -90,10 +85,10 @@ export default async function ProfilePage({
         </div>
       ) : null}
 
-      {params.error || error ? (
+      {params.error ? (
         <div className="notice warning">
           <b>Could not save profile</b>
-          <span>{params.error ?? error?.message}</span>
+          <span>{params.error}</span>
         </div>
       ) : null}
 

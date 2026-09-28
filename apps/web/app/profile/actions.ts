@@ -119,10 +119,11 @@ export async function saveCareerProfile(formData: FormData) {
     redirect("/profile?error=" + encodeURIComponent("Choose at least one target role family."));
   }
 
-  const maxSeniorityRaw = text(formData, "maxSeniority") || "junior";
-  const maxSeniority = seniorities.has(maxSeniorityRaw)
-    ? maxSeniorityRaw
-    : "junior";
+  const seniorityTarget = text(formData, "seniorityTarget") || "any";
+  const seniorityMode = seniorityTarget === "any" ? "any" : "capped";
+  const maxSeniority = seniorities.has(seniorityTarget)
+    ? seniorityTarget
+    : "senior";
 
   let facts: VerifiedCareerFact[];
   try {
@@ -136,7 +137,6 @@ export async function saveCareerProfile(formData: FormData) {
     email: text(formData, "email"),
     phone: text(formData, "phone"),
     "secondary phone": text(formData, "secondaryPhone"),
-    linkedin: text(formData, "linkedin"),
     github: text(formData, "github"),
     x: text(formData, "xProfile"),
     portfolio: text(formData, "portfolio"),
@@ -174,6 +174,7 @@ export async function saveCareerProfile(formData: FormData) {
     ...previous,
     skills: list(text(formData, "skills")),
     roleFamilies: selectedRoles,
+    seniorityMode,
     maxSeniority,
     country: text(formData, "country"),
     blockedRequirements: list(text(formData, "blockedRequirements")),

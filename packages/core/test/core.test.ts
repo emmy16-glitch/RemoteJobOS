@@ -48,6 +48,32 @@ test("rejects a non-remote job immediately", () => {
   assert.equal(result.total, 0);
 });
 
+test("any-seniority mode does not cap senior technical roles", () => {
+  const profile: CareerProfile = {
+    skills: ["linux", "docker", "git"],
+    roleFamilies: ["devops"],
+    seniorityMode: "any",
+    maxSeniority: "junior",
+    country: "Nigeria"
+  };
+  const job: NormalizedJob = {
+    source: "test",
+    externalId: "seniority-any",
+    title: "Senior DevOps Engineer",
+    company: "Example",
+    description: "Remote worldwide role using Linux, Docker and Git.",
+    applyUrl: "https://example.com/apply",
+    remote: true,
+    remoteScope: "global",
+    roleFamily: "devops",
+    tags: ["linux", "docker", "git"]
+  };
+
+  const result = scoreJob(job, profile);
+  assert.equal(result.breakdown.seniority, 15);
+  assert.match(result.reasons.join(" "), /any seniority/i);
+});
+
 test("marks a strong, eligible remote role as a strong match", () => {
   const profile: CareerProfile = {
     skills: ["linux", "docker", "git"],

@@ -38,10 +38,13 @@ export interface NormalizedJob {
   tags: string[];
 }
 
+export type Seniority = "intern" | "entry" | "junior" | "mid" | "senior";
+
 export interface CareerProfile {
   skills: string[];
   roleFamilies: RoleFamily[];
-  maxSeniority: "intern" | "entry" | "junior" | "mid" | "senior";
+  seniorityMode?: "any" | "capped";
+  maxSeniority: Seniority;
   country?: string;
   blockedRequirements?: string[];
 }

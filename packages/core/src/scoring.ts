@@ -206,7 +206,10 @@ export function scoreJob(job: NormalizedJob, profile: CareerProfile): JobScore {
   }
 
   const wanted = inferredSeniority(job.title);
-  if (seniorityRank[wanted] <= seniorityRank[profile.maxSeniority]) {
+  if (profile.seniorityMode === "any") {
+    breakdown.seniority = 15;
+    reasons.push("Any seniority level is eligible for evaluation");
+  } else if (seniorityRank[wanted] <= seniorityRank[profile.maxSeniority]) {
     breakdown.seniority = 15;
     reasons.push("Seniority is within target range");
   } else {
