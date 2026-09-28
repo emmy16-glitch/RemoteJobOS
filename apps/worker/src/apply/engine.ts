@@ -61,75 +61,147 @@ export async function runApplicationPipeline(
     const assets = { ...storedAssets, ...(context.assets ?? {}) };
     const executionContext: ApplicationContext = { ...context, assets };
 
-    assertToolFamilyAllowed("scan", "browser");
-    await store.recordStage(attemptId, "scan", "started");
-    const fields = await adapter.scan(executionContext);
-
-    assertToolFamilyAllowed("plan", "profile");
-    await store.recordStage(attemptId, "plan", "started", { fieldCount: fields.length });
     const [verifiedAnswers, autoApprovedAnswerKeys] = await Promise.all([
       store.getVerifiedAnswers(context.applicationId),
       store.getAutoApprovedAnswerKeys(context.applicationId)
     ]);
-    const plan = buildDeterministicFillPlan(
-      fields,
-      verifiedAnswers,
-      Object.keys(assets),
-      autoApprovedAnswerKeys
-    );
 
-    const reviews = plan.filter((entry) => entry.action.type === "human-review");
-    if (reviews.length) {
-      const reason = `${reviews.length} field(s) require explicit human review`;
-      await store.recordStage(attemptId, "plan", "blocked", {
-        reviewFields: reviews.map((entry) => ({
-          key: entry.field.key,
-          label: entry.field.label,
-          reason: entry.action.type === "human-review" ? entry.action.reason : ""
-        }))
+    const maxFormPages = 8;
+    let formPage = 0;
+
+    while (true) {
+      formPage += 1;
+
+      assertToolFamilyAllowed("scan", "browser");
+      await store.recordStage(attemptId, "scan", "started", { formPage });
+      const fields = await adapter.scan(executionContext);
+
+      assertToolFamilyAllowed("plan", "profile");
+      await store.recordStage(attemptId, "plan", "started", {
+        formPage,
+        fieldCount: fields.length
       });
-      return {
-        status: "needs-review",
-        attemptId,
-        reason,
-        fields: reviews.map((entry) => ({
-          key: entry.field.key,
-          label: entry.field.label,
-          reason:
-            entry.action.type === "human-review"
-              ? entry.action.reason
-              : "Human review required",
-          sensitive: Boolean(entry.field.sensitive),
-          kind: entry.field.kind,
-          options: entry.field.options
-        }))
-      };
+
+      const plan = buildDeterministicFillPlan(
+        fields,
+        verifiedAnswers,
+        Object.keys(assets),
+        autoApprovedAnswerKeys
+      );
+
+      const reviews = plan.filter((entry) => entry.action.type === "human-review");
+      if (reviews.length) {
+        const reason = `${reviews.length} field(s) require explicit human review`;
+        await store.recordStage(attemptId, "plan", "blocked", {
+          formPage,
+          reviewFields: reviews.map((entry) => ({
+            key: entry.field.key,
+            label: entry.field.label,
+            reason: entry.action.type === "human-review" ? entry.action.reason : ""
+          }))
+        });
+        return {
+          status: "needs-review",
+          attemptId,
+          reason,
+          fields: reviews.map((entry) => ({
+            key: entry.field.key,
+            label: entry.field.label,
+            reason:
+              entry.action.type === "human-review"
+                ? entry.action.reason
+                : "Human review required",
+            sensitive: Boolean(entry.field.sensitive),
+            kind: entry.field.kind,
+            options: entry.field.options
+          }))
+        };
+      }
+
+      assertToolFamilyAllowed("fill", "browser");
+      await store.recordStage(attemptId, "fill", "started", { formPage });
+      await adapter.fill(executionContext, plan);
+
+      assertToolFamilyAllowed("verify", "browser");
+      assertToolFamilyAllowed("verify", "evidence");
+      await store.recordStage(attemptId, "verify", "started", { formPage });
+      const verification = await adapter.verify(executionContext, plan);
+      if (!verification.ok) {
+        await store.recordStage(attemptId, "verify", "blocked", {
+          formPage,
+          verification: verification as unknown as Record<string, unknown>
+        });
+        return {
+          status: "blocked",
+          attemptId,
+          reason: `Verification failed with ${verification.issues.length} issue(s)`,
+          issues: verification.issues
+        };
+      }
+
+      await store.recordStage(attemptId, "verify", "verified", {
+        formPage,
+        verifiedFieldCount: verification.verifiedFieldCount,
+        totalFieldCount: verification.totalFieldCount
+      });
+
+      if (formPage >= maxFormPages) {
+        const finalCheck = await adapter.prepareSubmit?.(executionContext);
+        if (!finalCheck?.ready) {
+          const reason =
+            `Application form exceeded the safe ${maxFormPages}-page automation limit before a final Submit control was verified`;
+          await store.recordStage(attemptId, "advance", "blocked", {
+            formPage,
+            reason,
+            preflightReason: finalCheck?.reason
+          });
+          return {
+            status: "blocked",
+            attemptId,
+            reason,
+            issues: [{
+              fieldKey: "form-page-limit",
+              code: "unverified",
+              message: reason
+            }]
+          };
+        }
+        break;
+      }
+
+      const progress = await adapter.advanceIfNeeded?.(executionContext);
+      if (!progress?.advanced) break;
+
+      await store.recordStage(attemptId, "advance", "verified", {
+        formPage,
+        reason: progress.reason ?? "safe-next-step"
+      });
     }
 
-    assertToolFamilyAllowed("fill", "browser");
-    await store.recordStage(attemptId, "fill", "started");
-    await adapter.fill(executionContext, plan);
-
-    assertToolFamilyAllowed("verify", "browser");
-    assertToolFamilyAllowed("verify", "evidence");
-    await store.recordStage(attemptId, "verify", "started");
-    const verification = await adapter.verify(executionContext, plan);
-    if (!verification.ok) {
-      await store.recordStage(attemptId, "verify", "blocked", {
-        verification: verification as unknown as Record<string, unknown>
-      });
-      return {
-        status: "blocked",
-        attemptId,
-        reason: `Verification failed with ${verification.issues.length} issue(s)`,
-        issues: verification.issues
-      };
+    // A dry-run is only considered clean when the final page exposes a clear,
+    // enabled Submit control. This prevents an unsupported wizard page from
+    // being policy-authorized simply because its visible fields were filled.
+    if (context.dryRun && adapter.prepareSubmit) {
+      const finalPreparation = await adapter.prepareSubmit(executionContext);
+      if (!finalPreparation.ready) {
+        const reason =
+          finalPreparation.reason ?? "Final submit control could not be verified";
+        await store.recordStage(attemptId, "submit-preflight", "blocked", {
+          dryRun: true,
+          reason
+        });
+        return {
+          status: "blocked",
+          attemptId,
+          reason,
+          issues: [{
+            fieldKey: /captcha/i.test(reason) ? "captcha" : "submit-control",
+            code: "unverified",
+            message: reason
+          }]
+        };
+      }
     }
-
-    await store.recordStage(attemptId, "verify", "verified", {
-      verifiedFieldCount: verification.verifiedFieldCount,
-      totalFieldCount: verification.totalFieldCount
-    });
 
     if (context.dryRun) {
       assertToolFamilyAllowed("report", "evidence");
