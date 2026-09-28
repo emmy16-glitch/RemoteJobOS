@@ -1,3 +1,6 @@
+alter type public.application_status add value if not exists 'auto-submit-queued';
+alter type public.application_status add value if not exists 'needs-attention';
+
 alter table public.agent_approvals
   add column if not exists decision_source text not null default 'manual'
     check (decision_source in ('manual','policy')),
