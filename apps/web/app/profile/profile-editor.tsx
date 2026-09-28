@@ -35,6 +35,7 @@ export type EditableProfile = {
   displayName: string;
   skills: string[];
   roleFamilies: RoleFamily[];
+  seniorityMode: "any" | "capped";
   maxSeniority: "intern" | "entry" | "junior" | "mid" | "senior";
   blockedRequirements: string[];
   verifiedAnswers: Record<string, string>;
@@ -345,15 +346,6 @@ export function ProfileEditor({
           </label>
 
           <label>
-            <span>LinkedIn</span>
-            <input
-              name="linkedin"
-              type="url"
-              defaultValue={inputValue(initial.verifiedAnswers, "linkedin")}
-            />
-          </label>
-
-          <label>
             <span>GitHub</span>
             <input
               name="github"
@@ -449,16 +441,21 @@ export function ProfileEditor({
 
         <div className="formGrid two">
           <label>
-            <span>Maximum seniority to target</span>
+            <span>Seniority targeting</span>
             <select
-              name="maxSeniority"
-              defaultValue={initial.maxSeniority}
+              name="seniorityTarget"
+              defaultValue={
+                initial.seniorityMode === "any"
+                  ? "any"
+                  : initial.maxSeniority
+              }
             >
-              <option value="intern">Internship</option>
-              <option value="entry">Entry level</option>
-              <option value="junior">Junior</option>
-              <option value="mid">Mid-level</option>
-              <option value="senior">Senior</option>
+              <option value="any">Any seniority — evaluate all roles</option>
+              <option value="intern">Up to internship</option>
+              <option value="entry">Up to entry level</option>
+              <option value="junior">Up to junior</option>
+              <option value="mid">Up to mid-level</option>
+              <option value="senior">Up to senior</option>
             </select>
           </label>
 
