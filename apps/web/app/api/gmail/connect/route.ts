@@ -3,11 +3,20 @@ import { NextResponse, type NextRequest } from "next/server";
 import { authenticatedUserId } from "../../../../lib/auth";
 import { gmailOAuthEnv } from "../../../../lib/gmail/env";
 
+function publicBaseUrl(request: NextRequest) {
+  const env = gmailOAuthEnv();
+  if (env.redirectUri) {
+    return new URL(env.redirectUri).origin;
+  }
+  return new URL(request.url).origin;
+}
+
 export async function GET(request: NextRequest) {
+  const baseUrl = publicBaseUrl(request);
   const userId = await authenticatedUserId();
   if (!userId) {
     console.warn("[gmail-connect] no authenticated user");
-    return NextResponse.redirect(new URL("/login?next=/inbox", request.url), 302);
+    return NextResponse.redirect(new URL("/login?next=/inbox", baseUrl), 302);
   }
 
   const env = gmailOAuthEnv();
@@ -22,7 +31,7 @@ export async function GET(request: NextRequest) {
       new URL(
         "/inbox?error=" +
           encodeURIComponent("Gmail OAuth environment is incomplete on the live server."),
-        request.url
+        baseUrl
       ),
       302
     );
