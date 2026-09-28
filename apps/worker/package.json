@@ -12,7 +12,8 @@
     "prepare-cvs": "npm run build --workspace @remotejobos/core && tsx src/index.ts prepare-cvs",
     "apply-one": "npm run build --workspace @remotejobos/core && tsx src/index.ts apply-one",
     "sync-applications": "npm run build --workspace @remotejobos/core && tsx src/index.ts sync-applications",
-    "process-application-tasks": "npm run build --workspace @remotejobos/core && tsx src/index.ts process-application-tasks"
+    "process-application-tasks": "npm run build --workspace @remotejobos/core && tsx src/index.ts process-application-tasks",
+    "decide-approval": "npm run build --workspace @remotejobos/core && tsx src/index.ts decide-approval"
   },
   "dependencies": {
     "@remotejobos/core": "*",
