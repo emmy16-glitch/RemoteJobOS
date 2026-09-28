@@ -1,7 +1,11 @@
-import type { NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "./lib/supabase/proxy";
 
 export async function proxy(request: NextRequest) {
+  if (request.nextUrl.pathname === "/api/gmail/callback") {
+    return NextResponse.next({ request });
+  }
+
   return updateSession(request);
 }
 
