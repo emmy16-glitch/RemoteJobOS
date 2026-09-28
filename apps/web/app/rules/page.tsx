@@ -35,7 +35,7 @@ export default async function RulesPage() {
             <p className="eyebrow">FAIL-CLOSED POLICY</p>
             <h1>Application rules</h1>
           </div>
-          <div className="status">Live submit disabled by default</div>
+          <div className="status">Auto-except enabled</div>
         </header>
 
         <section className="rulesGrid">
@@ -50,10 +50,11 @@ export default async function RulesPage() {
 
           <article className="panel ruleCard">
             <p className="eyebrow">SENSITIVE FIELDS</p>
-            <h2>Always ask</h2>
+            <h2>Ask only when needed</h2>
             <p>
-              Salary, citizenship, clearance, demographics, sponsorship and
-              relocation questions stop for explicit human review.
+              Sensitive or high-impact questions pause unless you have already
+              stored that exact truthful answer and explicitly allowed
+              automatic reuse in the Answer Vault.
             </p>
           </article>
 
@@ -70,8 +71,9 @@ export default async function RulesPage() {
             <p className="eyebrow">IDEMPOTENCY</p>
             <h2>Never double-submit</h2>
             <p>
-              Queue leases, application fences and verified confirmation pages
-              prevent concurrent workers from submitting the same application.
+              Queue leases, durable submission fences, bounded safe retries and
+              verified confirmation checks prevent concurrent or blind repeat
+              submissions.
             </p>
           </article>
 
