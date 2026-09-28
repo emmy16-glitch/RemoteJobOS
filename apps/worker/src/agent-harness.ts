@@ -157,6 +157,16 @@ export async function startOrResumeApplicationRun(args: {
       throw new Error("Resume run belongs to a different application");
     }
 
+    if (existing.status === "waiting-approval" && args.mode === "dry-run") {
+      return existing;
+    }
+    if (existing.status === "completed" || existing.status === "cancelled") {
+      return existing;
+    }
+    if (existing.status === "blocked" && existing.recovery_strategy === "manual-reconcile") {
+      return existing;
+    }
+
     const recovery = recoveryDisposition({
       submissionFencedAt: application.submission_fenced_at,
       submittedAt: application.submitted_at,
@@ -721,6 +731,35 @@ export async function completeHarnessRun(
       })
     });
   }
+}
+
+export async function failHarnessRun(
+  runId: string,
+  applicationId: string,
+  reason: string,
+  result: Record<string, unknown> = {}
+): Promise<"failed" | "blocked"> {
+  const application = await applicationState(applicationId);
+  const recovery = recoveryDisposition({
+    submissionFencedAt: application.submission_fenced_at,
+    submittedAt: application.submitted_at,
+    confirmationVerifiedAt: application.confirmation_verified_at
+  });
+  const status = recovery === "manual-reconcile" ? "blocked" : "failed";
+
+  await request(`agent_runs?id=eq.${encodeURIComponent(runId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      status,
+      recovery_strategy: recovery,
+      last_error: reason,
+      result,
+      completed_at: status === "blocked" ? new Date().toISOString() : null,
+      updated_at: new Date().toISOString()
+    })
+  });
+
+  return status;
 }
 
 export async function blockHarnessRun(
