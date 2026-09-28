@@ -107,3 +107,91 @@ revoke execute on function public.reserve_agent_submit_attempt(uuid, integer)
   from public, anon, authenticated;
 grant execute on function public.reserve_agent_submit_attempt(uuid, integer)
   to service_role;
+
+
+create or replace function public.can_submit_application(p_application_id uuid)
+returns table(allowed boolean, reason text)
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  app public.applications;
+  job public.jobs;
+  policy public.company_policy;
+  normalized text;
+  daily_count integer;
+  lifetime_count integer;
+  has_approval boolean;
+begin
+  select * into app from public.applications where id = p_application_id;
+  if app.id is null then
+    return query select false, 'application-not-found';
+    return;
+  end if;
+
+  if app.submission_fenced_at is not null or app.submitted_at is not null then
+    return query select false, 'already-fenced-or-submitted';
+    return;
+  end if;
+
+  select exists (
+    select 1
+    from public.agent_approvals approval
+    join public.agent_runs run on run.id = approval.run_id
+    where approval.application_id = p_application_id
+      and approval.status = 'approved'
+      and run.application_id = p_application_id
+      and run.status in ('pending','running','failed')
+  ) into has_approval;
+
+  if not has_approval then
+    return query select false, 'approval-required';
+    return;
+  end if;
+
+  select * into job from public.jobs where id = app.job_id;
+  normalized := lower(regexp_replace(coalesce(job.company, ''), '[^a-z0-9]+', '', 'g'));
+
+  select * into policy from public.company_policy where normalized_company = normalized;
+  if policy.normalized_company is not null then
+    if policy.blocked then
+      return query select false, 'company-blocked';
+      return;
+    end if;
+    if policy.cooldown_until is not null and policy.cooldown_until > now() then
+      return query select false, 'company-cooldown';
+      return;
+    end if;
+  end if;
+
+  select count(*) into daily_count
+  from public.applications a
+  join public.jobs j on j.id = a.job_id
+  where a.submitted_at >= date_trunc('day', now())
+    and lower(regexp_replace(coalesce(j.company, ''), '[^a-z0-9]+', '', 'g')) = normalized;
+
+  select count(*) into lifetime_count
+  from public.applications a
+  join public.jobs j on j.id = a.job_id
+  where a.submitted_at is not null
+    and lower(regexp_replace(coalesce(j.company, ''), '[^a-z0-9]+', '', 'g')) = normalized;
+
+  if daily_count >= coalesce(policy.max_daily_submissions, 5) then
+    return query select false, 'company-daily-limit';
+    return;
+  end if;
+
+  if lifetime_count >= coalesce(policy.max_lifetime_submissions, 10) then
+    return query select false, 'company-lifetime-limit';
+    return;
+  end if;
+
+  return query select true, 'ok';
+end;
+$$;
+
+revoke execute on function public.can_submit_application(uuid)
+  from public, anon, authenticated;
+grant execute on function public.can_submit_application(uuid)
+  to service_role;
