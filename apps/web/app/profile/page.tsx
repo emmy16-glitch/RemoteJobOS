@@ -18,6 +18,9 @@ type StoredProfile = {
   blockedRequirements?: string[];
   verifiedAnswers?: Record<string, string>;
   facts?: VerifiedCareerFact[];
+  settings?: {
+    autonomyMode?: "auto-except" | "review";
+  };
 };
 
 export default async function ProfilePage({
@@ -55,7 +58,8 @@ export default async function ProfilePage({
     maxSeniority: stored.maxSeniority ?? "senior",
     blockedRequirements: stored.blockedRequirements ?? [],
     verifiedAnswers: stored.verifiedAnswers ?? {},
-    facts: stored.facts ?? []
+    facts: stored.facts ?? [],
+    autonomyMode: stored.settings?.autonomyMode ?? "auto-except"
   };
 
   return (
