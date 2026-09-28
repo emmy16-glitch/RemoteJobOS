@@ -153,16 +153,6 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
     supabase
       .from("applications")
       .select("id", { count: "exact", head: true })
-      .eq("profile_id", profileId)
-      .eq("status", "needs-attention"),
-    supabase
-      .from("applications")
-      .select("id", { count: "exact", head: true })
-      .eq("profile_id", profileId)
-      .eq("status", "auto-submit-queued"),
-    supabase
-      .from("applications")
-      .select("id", { count: "exact", head: true })
       .eq("profile_id", profileId),
     supabase
       .from("applications")
