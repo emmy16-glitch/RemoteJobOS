@@ -168,3 +168,73 @@ The current scheduled review workflow remains dry-run only. Live submission is
 not enabled automatically. A separate manual workflow requires an explicit
 approval ID and an explicit live-submission confirmation before setting
 `REMOTEJOBOS_ALLOW_SUBMIT=true`.
+
+
+## Auto-except application operations
+
+The default operating model is **auto-except**:
+
+```
+discovery → matching → verified CV → browser dry-run → deterministic verification
+                                                        │
+                           clean ────────────────────────┤
+                             │                          │ blocker
+                             ▼                          ▼
+                    policy authorization          Exception Center
+                             │                          │
+                             ▼                     user resolves once
+                       auto-submit                      │
+                             │                          └── resume same run
+                             ▼
+                      confirmation
+                             │
+                             ▼
+                     lifecycle tracking
+```
+
+A clean dry-run may receive a policy approval record and enter the dedicated
+`application-auto-submit` queue. Manual `review` mode remains available, but
+it is not the default. Database submission fences still require an approved
+authorization record, so auto-except does not bypass the consequential-action
+policy; it creates an auditable **policy** authorization only after deterministic
+verification succeeds.
+
+Exceptions are first-class durable records. Missing answers, sensitive answers
+without reuse permission, CAPTCHA, unsupported ATS flows, exhausted retries,
+verification failures, and uncertain submit outcomes pause only that
+application. Resolving the final open exception can resume the same durable run.
+
+The Answer Vault separates **verified reusable user facts** from live form
+state. Each answer has one of three reuse policies:
+
+- `always`: deterministic reuse is permitted;
+- `ask`: remember the answer but interrupt before reuse;
+- `never`: one-application use only.
+
+Optional sensitive/demographic fields do not create noise: RemoteJobOS selects
+an explicit decline/prefer-not-to-say option when available, otherwise skips an
+optional field. Required high-impact questions still stop unless the user has
+explicitly approved a reusable answer.
+
+### Gmail lifecycle and notifications
+
+Gmail OAuth tokens remain encrypted at rest. The connected account grants
+`gmail.readonly` for lifecycle classification and `gmail.send` for
+RemoteJobOS alerts. The notification outbox is durable and deduplicated; if
+Gmail has not been connected yet, notifications remain pending rather than
+being discarded.
+
+Lifecycle messages are classified deterministically into application receipt,
+assessment, interview, offer, rejection, or recruiter response. A uniquely
+matched employer application-receipt email can act as external confirmation of
+an otherwise uncertain submission. Ambiguous email matches never mutate
+application state.
+
+### Supported browser families
+
+The shared fail-closed Playwright adapter currently routes Greenhouse, Lever,
+Ashby, Workable, SmartRecruiters, Workday, BambooHR, Teamtailor, iCIMS,
+Jobvite, and Taleo URLs. It supports bounded multi-page progression by clicking
+only explicit Next/Continue-style controls after the current page has been
+filled and re-verified. A final Submit control must be visible and enabled
+before an auto-except dry-run is considered clean.
