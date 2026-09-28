@@ -5,6 +5,7 @@ import {
   gmailHeader,
   listGmailMessageIds,
   sendGmailMessage,
+  gmailWorkerConfigured,
   type GmailConnection
 } from "./gmail-client.js";
 import { queueNotification } from "./notifications.js";
@@ -137,13 +138,14 @@ export async function sendPendingNotifications(limit = 20): Promise<number> {
       continue;
     }
 
-    if (!connection) {
+    if (!connection || !connection.granted_scope?.includes("gmail.send")) {
       await request(`notification_outbox?id=eq.${encodeURIComponent(row.id)}`, {
         method: "PATCH",
         body: JSON.stringify({
-          status: "failed",
-          attempts: row.attempts + 1,
-          last_error: "No active Gmail connection",
+          status: "pending",
+          last_error: !connection
+            ? "No active Gmail connection"
+            : "Reconnect Gmail to grant gmail.send",
           available_at: new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString(),
           updated_at: new Date().toISOString()
         })
@@ -249,6 +251,11 @@ function headerDate(value: string, internalDate?: string): string | null {
 }
 
 export async function syncGmailLifecycle(): Promise<number> {
+  if (!gmailWorkerConfigured()) {
+    console.log("[gmail] worker OAuth secrets are not configured; lifecycle sync skipped.");
+    return 0;
+  }
+
   const connections = await request<GmailConnection[]>(
     "gmail_connections?select=*&active=eq.true&order=updated_at.desc&limit=100"
   );
@@ -326,6 +333,36 @@ export async function syncGmailLifecycle(): Promise<number> {
         stored += 1;
 
         const nextStatus = lifecycleStatus(classification.classification);
+        if (application && classification.classification === "application-received") {
+          await request(`applications?id=eq.${encodeURIComponent(application.id)}`, {
+            method: "PATCH",
+            body: JSON.stringify({
+              next_action: "Employer receipt detected in Gmail. Lifecycle tracking is active.",
+              updated_at: new Date().toISOString()
+            })
+          });
+
+          const job = jobs.get(application.job_id);
+          if (job) {
+            await queueNotification({
+              ownerId: connection.owner_id,
+              applicationId: application.id,
+              kind: "application-received",
+              subject: `RemoteJobOS: employer received your application — ${job.company}`,
+              bodyText: [
+                "RemoteJobOS detected an application receipt in Gmail.",
+                "",
+                `Company: ${job.company}`,
+                `Role: ${job.title}`,
+                `Email subject: ${subject}`,
+                "",
+                "Lifecycle tracking will continue automatically."
+              ].join("\n"),
+              dedupeKey: `gmail-received:${message.id}`
+            });
+          }
+        }
+
         if (application && nextStatus) {
           await request(`applications?id=eq.${encodeURIComponent(application.id)}`, {
             method: "PATCH",
