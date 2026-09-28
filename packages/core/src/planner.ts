@@ -100,6 +100,21 @@ export function buildDeterministicFillPlan(
         };
       }
 
+      if (!field.required) {
+        const canDecline = field.options?.some((option) =>
+          /decline|prefer not|do not wish|rather not/i.test(option)
+        );
+
+        return {
+          field,
+          action: canDecline
+            ? { type: "decline" }
+            : { type: "skip", reason: "Optional sensitive field omitted" },
+          source: "policy",
+          confidence: 1
+        };
+      }
+
       return {
         field,
         action: {
