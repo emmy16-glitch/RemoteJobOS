@@ -100,7 +100,17 @@ export async function GET(request: NextRequest) {
   }
 
   const gmailProfile = (await gmailProfileResponse.json()) as GmailProfile;
-  const encrypted = encryptGmailRefreshToken(tokens.refresh_token);
+  let encrypted;
+  try {
+    encrypted = encryptGmailRefreshToken(tokens.refresh_token);
+  } catch (error) {
+    console.error("[gmail-callback] token encryption failed", error);
+    return redirectWithError(
+      request,
+      "Gmail token encryption failed. Check GMAIL_TOKEN_ENCRYPTION_KEY on Render."
+    );
+  }
+
   const supabase = await createServerSupabaseClient();
 
   const { error } = await supabase
@@ -128,8 +138,15 @@ export async function GET(request: NextRequest) {
     return redirectWithError(request, error.message);
   }
 
+  console.info("[gmail-callback] Gmail connected", {
+    userId,
+    emailAddress: gmailProfile.emailAddress ?? null,
+    grantedScope: tokens.scope ?? null
+  });
+
   const response = NextResponse.redirect(
-    new URL("/inbox?connected=1", request.url)
+    new URL("/inbox?connected=1", request.url),
+    302
   );
   response.cookies.delete("remotejobos_gmail_oauth_state");
   return response;
