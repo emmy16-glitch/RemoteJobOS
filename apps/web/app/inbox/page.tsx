@@ -1,6 +1,11 @@
 import { Sidebar } from "../components/sidebar";
 import { requireDashboardUser } from "../../lib/page-auth";
 import { createServerSupabaseClient } from "../../lib/supabase/server";
+import {
+  hasGmailReadAccess,
+  hasGmailSendAccess,
+  isGmailFullyConfigured
+} from "../../lib/gmail/scopes";
 import { saveNotificationPreferences } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -82,9 +87,12 @@ export default async function InboxPage({
   const connection = connectionResult.data as GmailConnection | null;
   const messages = (messageResult.data ?? []) as GmailMessage[];
   const prefs = preferenceResult.data as NotificationPrefs | null;
-  const hasRead = connection?.granted_scope?.includes("gmail.readonly") ?? false;
-  const hasSend = connection?.granted_scope?.includes("gmail.send") ?? false;
-  const fullyConnected = Boolean(connection?.active && hasRead && hasSend);
+  const hasRead = hasGmailReadAccess(connection?.granted_scope);
+  const hasSend = hasGmailSendAccess(connection?.granted_scope);
+  const fullyConnected = isGmailFullyConfigured({
+    active: connection?.active,
+    grantedScope: connection?.granted_scope
+  });
 
   return (
     <main className="shell">

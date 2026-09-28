@@ -1,4 +1,4 @@
-import { classifyJobEmail } from "@remotejobos/core";
+import { classifyJobEmail, hasGmailReadAccess, hasGmailSendAccess, isRefreshTokenRevoked } from "@remotejobos/core";
 import { config, hasSupabase } from "./config.js";
 import {
   getGmailMessage,
@@ -106,6 +106,35 @@ async function preferencesForOwner(ownerId: string): Promise<NotificationPrefs |
   return rows[0];
 }
 
+/**
+ * Records a sync/send failure against the connection. Transient errors keep
+ * the connection active; a revoked/expired refresh token deactivates it so
+ * the dashboard stops reporting a stale "Connected" state and /inbox asks
+ * the user to reconnect.
+ */
+async function reportConnectionError(ownerId: string, message: string): Promise<void> {
+  const revoked = isRefreshTokenRevoked(message);
+  await request(
+    `gmail_connections?owner_id=eq.${encodeURIComponent(ownerId)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(
+        revoked
+          ? {
+              active: false,
+              last_error:
+                "Gmail access was revoked or expired. Reconnect Gmail in /inbox.",
+              updated_at: new Date().toISOString()
+            }
+          : {
+              last_error: message,
+              updated_at: new Date().toISOString()
+            }
+      )
+    }
+  ).catch(() => undefined);
+}
+
 export async function sendPendingNotifications(limit = 20): Promise<number> {
   const staleSendingBefore = new Date(Date.now() - 30 * 60 * 1000).toISOString();
   await request(
@@ -138,7 +167,7 @@ export async function sendPendingNotifications(limit = 20): Promise<number> {
       continue;
     }
 
-    if (!connection || !connection.granted_scope?.includes("gmail.send")) {
+    if (!connection || !hasGmailSendAccess(connection.granted_scope)) {
       await request(`notification_outbox?id=eq.${encodeURIComponent(row.id)}`, {
         method: "PATCH",
         body: JSON.stringify({
@@ -182,6 +211,8 @@ export async function sendPendingNotifications(limit = 20): Promise<number> {
       });
       sent += 1;
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await reportConnectionError(row.owner_id, message).catch(() => undefined);
       const attempts = row.attempts + 1;
       const delayMinutes = Math.min(360, 5 * (2 ** Math.min(6, attempts - 1)));
       await request(`notification_outbox?id=eq.${encodeURIComponent(row.id)}`, {
@@ -263,7 +294,7 @@ export async function syncGmailLifecycle(): Promise<number> {
   let stored = 0;
 
   for (const connection of connections) {
-    if (!connection.granted_scope?.includes("gmail.readonly")) continue;
+    if (!hasGmailReadAccess(connection.granted_scope)) continue;
 
     try {
       const ids = await listGmailMessageIds({
@@ -416,16 +447,8 @@ export async function syncGmailLifecycle(): Promise<number> {
         }
       );
     } catch (error) {
-      await request(
-        `gmail_connections?owner_id=eq.${encodeURIComponent(connection.owner_id)}`,
-        {
-          method: "PATCH",
-          body: JSON.stringify({
-            last_error: error instanceof Error ? error.message : String(error),
-            updated_at: new Date().toISOString()
-          })
-        }
-      ).catch(() => undefined);
+      const message = error instanceof Error ? error.message : String(error);
+      await reportConnectionError(connection.owner_id, message);
     }
   }
 

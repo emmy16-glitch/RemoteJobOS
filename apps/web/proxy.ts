@@ -1,9 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { updateSession } from "./lib/supabase/proxy";
+import { refreshSessionOnly, updateSession } from "./lib/supabase/proxy";
 
 export async function proxy(request: NextRequest) {
   if (request.nextUrl.pathname === "/api/gmail/callback") {
-    return NextResponse.next({ request });
+    // Never redirect the OAuth callback: refresh the Supabase session so the
+    // route sees a current session, then let the route handle logged-out,
+    // state-mismatch, and Google-error cases itself.
+    return refreshSessionOnly(request);
   }
 
   return updateSession(request);

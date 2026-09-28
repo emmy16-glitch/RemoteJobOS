@@ -1,5 +1,6 @@
 import "server-only";
 import { createServerSupabaseClient } from "./supabase/server";
+import { isGmailFullyConfigured } from "./gmail/scopes";
 import { latestProfileForUser } from "./profile";
 
 export type DashboardJob = {
@@ -428,10 +429,10 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
     active?: boolean;
   } | null;
 
-  const gmailConnected = Boolean(
-    connection?.active &&
-    connection.granted_scope?.includes("gmail.readonly")
-  );
+  const gmailConnected = isGmailFullyConfigured({
+    active: connection?.active,
+    grantedScope: connection?.granted_scope
+  });
 
   return {
     profileConfigured: true,

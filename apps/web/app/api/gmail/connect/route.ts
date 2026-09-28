@@ -1,7 +1,11 @@
 import { randomBytes } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { authenticatedUserId } from "../../../../lib/auth";
-import { gmailOAuthEnv } from "../../../../lib/gmail/env";
+import {
+  GMAIL_OAUTH_STATE_COOKIE,
+  GMAIL_OAUTH_STATE_TTL_SECONDS,
+  gmailOAuthEnv
+} from "../../../../lib/gmail/env";
 
 function publicBaseUrl(request: NextRequest) {
   const env = gmailOAuthEnv();
@@ -21,6 +25,7 @@ export async function GET(request: NextRequest) {
 
   const env = gmailOAuthEnv();
   if (!env.configured) {
+    // Never log secret values — only which pieces are present.
     console.error("[gmail-connect] OAuth environment incomplete", {
       hasClientId: Boolean(env.clientId),
       hasClientSecret: Boolean(env.clientSecret),
@@ -37,9 +42,11 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  // redirectUri is guaranteed present when configured; it is the public
+  // callback URL, never Render's internal request host.
+  const redirectUri = env.redirectUri;
+
   const state = randomBytes(32).toString("hex");
-  const redirectUri =
-    env.redirectUri || new URL("/api/gmail/callback", request.url).toString();
 
   console.info("[gmail-connect] starting OAuth", {
     userId,
@@ -64,12 +71,12 @@ export async function GET(request: NextRequest) {
   authUrl.searchParams.set("state", state);
 
   const response = NextResponse.redirect(authUrl, 302);
-  response.cookies.set("remotejobos_gmail_oauth_state", state, {
+  response.cookies.set(GMAIL_OAUTH_STATE_COOKIE, state, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: 10 * 60
+    maxAge: GMAIL_OAUTH_STATE_TTL_SECONDS
   });
 
   return response;

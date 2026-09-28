@@ -1,3 +1,6 @@
+export const GMAIL_OAUTH_STATE_COOKIE = "remotejobos_gmail_oauth_state";
+export const GMAIL_OAUTH_STATE_TTL_SECONDS = 10 * 60;
+
 export function gmailOAuthEnv() {
   const clientId = (process.env.GOOGLE_GMAIL_CLIENT_ID ?? "").trim();
   const clientSecret = (process.env.GOOGLE_GMAIL_CLIENT_SECRET ?? "").trim();
@@ -9,6 +12,9 @@ export function gmailOAuthEnv() {
     clientSecret,
     encryptionKey,
     redirectUri,
-    configured: Boolean(clientId && clientSecret && encryptionKey)
+    // The redirect URI is required: the token exchange must use a
+    // redirect_uri byte-identical to the authorization request, and it must
+    // be the public callback URL (never Render's internal request host).
+    configured: Boolean(clientId && clientSecret && encryptionKey && redirectUri)
   };
 }

@@ -1,4 +1,8 @@
-import { createDecipheriv } from "node:crypto";
+import {
+  decryptGmailRefreshToken,
+  hasGmailSendAccess,
+  type EncryptedGmailToken
+} from "@remotejobos/core";
 
 export type GmailConnection = {
   owner_id: string;
@@ -49,22 +53,12 @@ function oauthEnv() {
 
 function decryptRefreshToken(connection: GmailConnection): string {
   const env = oauthEnv();
-  const key = Buffer.from(env.encryptionKey, "base64");
-  if (key.length !== 32) {
-    throw new Error("GMAIL_TOKEN_ENCRYPTION_KEY must decode to 32 bytes");
-  }
-
-  const decipher = createDecipheriv(
-    "aes-256-gcm",
-    key,
-    Buffer.from(connection.token_iv, "base64")
-  );
-  decipher.setAuthTag(Buffer.from(connection.token_tag, "base64"));
-
-  return Buffer.concat([
-    decipher.update(Buffer.from(connection.refresh_token_ciphertext, "base64")),
-    decipher.final()
-  ]).toString("utf8");
+  const encrypted: EncryptedGmailToken = {
+    ciphertext: connection.refresh_token_ciphertext,
+    iv: connection.token_iv,
+    tag: connection.token_tag
+  };
+  return decryptGmailRefreshToken(encrypted, env.encryptionKey);
 }
 
 export async function gmailAccessToken(connection: GmailConnection): Promise<string> {
@@ -99,7 +93,7 @@ export async function sendGmailMessage(args: {
   subject: string;
   bodyText: string;
 }): Promise<string> {
-  if (!args.connection.granted_scope?.includes("gmail.send")) {
+  if (!hasGmailSendAccess(args.connection.granted_scope)) {
     throw new Error("Connected Gmail account has not granted gmail.send");
   }
 

@@ -1,31 +1,22 @@
 import "server-only";
-import { createCipheriv, randomBytes } from "node:crypto";
+import {
+  decryptGmailRefreshToken as decryptWithKey,
+  encryptGmailRefreshToken as encryptWithKey,
+  type EncryptedGmailToken
+} from "@remotejobos/core";
 import { gmailOAuthEnv } from "./env";
 
-function encryptionKey(): Buffer {
-  const raw = gmailOAuthEnv().encryptionKey;
-  const key = Buffer.from(raw, "base64");
+export type { EncryptedGmailToken };
 
-  if (key.length !== 32) {
-    throw new Error(
-      "GMAIL_TOKEN_ENCRYPTION_KEY must be a base64-encoded 32-byte key"
-    );
-  }
-
-  return key;
+/**
+ * Thin server-only wrapper: the AES-256-GCM format lives in
+ * @remotejobos/core so the OAuth callback and the Gmail workers provably
+ * share one implementation. The key itself is never logged.
+ */
+export function encryptGmailRefreshToken(token: string) {
+  return encryptWithKey(token, gmailOAuthEnv().encryptionKey);
 }
 
-export function encryptGmailRefreshToken(token: string) {
-  const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", encryptionKey(), iv);
-  const ciphertext = Buffer.concat([
-    cipher.update(token, "utf8"),
-    cipher.final()
-  ]);
-
-  return {
-    ciphertext: ciphertext.toString("base64"),
-    iv: iv.toString("base64"),
-    tag: cipher.getAuthTag().toString("base64")
-  };
+export function decryptGmailRefreshToken(encrypted: EncryptedGmailToken) {
+  return decryptWithKey(encrypted, gmailOAuthEnv().encryptionKey);
 }
