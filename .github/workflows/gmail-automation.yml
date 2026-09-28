@@ -29,12 +29,24 @@ jobs:
         with:
           node-version: 22
       - run: npm install
-      - name: Verify required cloud secrets
+      - name: Verify database secrets
         shell: bash
         run: |
           test -n "$SUPABASE_URL"
           test -n "$SUPABASE_SERVICE_ROLE_KEY"
+      - name: Check Gmail worker configuration
+        id: gmail-config
+        shell: bash
+        run: |
+          if [ -n "$GOOGLE_GMAIL_CLIENT_ID" ] && [ -n "$GOOGLE_GMAIL_CLIENT_SECRET" ] && [ -n "$GMAIL_TOKEN_ENCRYPTION_KEY" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "Gmail worker secrets are not configured; skipping Gmail automation."
+          fi
       - name: Sync Gmail lifecycle
+        if: steps.gmail-config.outputs.configured == 'true'
         run: npm run worker:sync-gmail
       - name: Send RemoteJobOS notifications
+        if: steps.gmail-config.outputs.configured == 'true'
         run: npm run worker:send-notifications -- "50"
