@@ -44,8 +44,16 @@ function redirectWithError(request: NextRequest, message: string) {
 }
 
 export async function GET(request: NextRequest) {
+  console.info("[gmail-callback] received", {
+    host: request.nextUrl.host,
+    hasCode: Boolean(request.nextUrl.searchParams.get("code")),
+    hasState: Boolean(request.nextUrl.searchParams.get("state")),
+    hasStateCookie: Boolean(request.cookies.get("remotejobos_gmail_oauth_state")?.value)
+  });
+
   const userId = await authenticatedUserId();
   if (!userId) {
+    console.warn("[gmail-callback] no authenticated RemoteJobOS session");
     return NextResponse.redirect(new URL("/login?next=/inbox", publicBaseUrl(request)), 302);
   }
 
@@ -85,6 +93,11 @@ export async function GET(request: NextRequest) {
 
   const tokens = (await tokenResponse.json()) as TokenResponse;
   if (!tokenResponse.ok || !tokens.access_token) {
+    console.error("[gmail-callback] token exchange failed", {
+      status: tokenResponse.status,
+      error: tokens.error ?? null,
+      description: tokens.error_description ?? null
+    });
     return redirectWithError(
       request,
       tokens.error_description ?? tokens.error ?? "Google token exchange failed."
@@ -108,6 +121,9 @@ export async function GET(request: NextRequest) {
   );
 
   if (!gmailProfileResponse.ok) {
+    console.error("[gmail-callback] Gmail profile lookup failed", {
+      status: gmailProfileResponse.status
+    });
     return redirectWithError(request, "Could not read the connected Gmail profile.");
   }
 
@@ -147,6 +163,10 @@ export async function GET(request: NextRequest) {
     .maybeSingle();
 
   if (error) {
+    console.error("[gmail-callback] connection save failed", {
+      code: error.code ?? null,
+      message: error.message
+    });
     return redirectWithError(request, error.message);
   }
 
