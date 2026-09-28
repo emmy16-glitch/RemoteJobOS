@@ -74,5 +74,5 @@ export interface SubmissionFence {
 export function requiresHumanReview(field: ApplicationField): boolean {
   const label = field.label.toLowerCase();
   return field.sensitive === true ||
-    /salary|compensation|citizenship|clearance|criminal|disability|race|gender|veteran|demographic|relocation|sponsorship/.test(label);
+    /salary|compensation|citizenship|clearance|criminal|disability|race|ethnicity|gender|veteran|demographic|relocation|sponsorship|visa|work authorization|work permit|legally authorized/.test(label);
 }
