@@ -426,7 +426,7 @@ export default async function Home() {
                   <b>{data.gmailEmail ?? "Connect your Gmail"}</b>
                   <small>{data.gmailConnected ? "Lifecycle tracking is active" : "Track employer replies and alerts"}</small>
                 </div>
-                <a href="/inbox">{data.gmailConnected ? "Settings" : "Connect"}</a>
+                <a href={data.gmailConnected ? "/inbox" : "/api/gmail/connect"}>{data.gmailConnected ? "Settings" : "Connect"}</a>
               </div>
 
               <div className="mailPreviewList">
