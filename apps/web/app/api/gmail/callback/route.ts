@@ -120,7 +120,9 @@ export async function GET(request: NextRequest) {
         updated_at: new Date().toISOString()
       },
       { onConflict: "owner_id" }
-    );
+    )
+    .select("owner_id")
+    .maybeSingle();
 
   if (error) {
     return redirectWithError(request, error.message);
