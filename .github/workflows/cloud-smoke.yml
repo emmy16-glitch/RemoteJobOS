@@ -1,0 +1,51 @@
+name: Cloud smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/cloud-smoke.yml"
+      - "apps/worker/**"
+      - "packages/core/**"
+      - "supabase/migrations/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloud-smoke
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      ENRICHMENT_PROVIDER: none
+      REMOTEJOBOS_DRY_RUN: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm install
+
+      - name: Verify required cloud secrets
+        shell: bash
+        run: |
+          test -n "$SUPABASE_URL"
+          test -n "$SUPABASE_SERVICE_ROLE_KEY"
+
+      - name: Worker health
+        run: npm run worker:health
+
+      - name: Discover remote jobs
+        run: npm run worker:discover
+
+      - name: Match discovered jobs
+        run: npm run worker:match
