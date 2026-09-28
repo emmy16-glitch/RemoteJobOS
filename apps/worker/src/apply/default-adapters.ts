@@ -19,5 +19,42 @@ export function createDefaultAdapterRegistry(): AdapterRegistry {
     /ashbyhq\.com/i
   ]));
 
+  registry.register(new PlaywrightAtsAdapter("workable", [
+    /apply\.workable\.com/i
+  ]));
+
+  registry.register(new PlaywrightAtsAdapter("smartrecruiters", [
+    /(?:jobs|careers)\.smartrecruiters\.com/i,
+    /smartrecruiters\.com/i
+  ]));
+
+  registry.register(new PlaywrightAtsAdapter("workday", [
+    /myworkdayjobs\.com/i,
+    /workdayjobs\.com/i
+  ]));
+
+  registry.register(new PlaywrightAtsAdapter("bamboohr", [
+    /bamboohr\.com\/careers/i,
+    /bamboohr\.com\/jobs/i
+  ]));
+
+  registry.register(new PlaywrightAtsAdapter("teamtailor", [
+    /teamtailor\.com/i
+  ]));
+
+  registry.register(new PlaywrightAtsAdapter("icims", [
+    /icims\.com\/jobs/i,
+    /icims\.com.*careers/i
+  ]));
+
+  registry.register(new PlaywrightAtsAdapter("jobvite", [
+    /jobs\.jobvite\.com/i,
+    /jobvite\.com.*job/i
+  ]));
+
+  registry.register(new PlaywrightAtsAdapter("taleo", [
+    /taleo\.net/i
+  ]));
+
   return registry;
 }
