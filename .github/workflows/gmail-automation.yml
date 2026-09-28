@@ -34,9 +34,6 @@ jobs:
         run: |
           test -n "$SUPABASE_URL"
           test -n "$SUPABASE_SERVICE_ROLE_KEY"
-          test -n "$GOOGLE_GMAIL_CLIENT_ID"
-          test -n "$GOOGLE_GMAIL_CLIENT_SECRET"
-          test -n "$GMAIL_TOKEN_ENCRYPTION_KEY"
       - name: Sync Gmail lifecycle
         run: npm run worker:sync-gmail
       - name: Send RemoteJobOS notifications
