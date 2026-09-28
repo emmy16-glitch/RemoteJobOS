@@ -106,7 +106,7 @@ export default async function InboxPage({
           <div className="status">{fullyConnected ? "Gmail connected" : "Gmail setup needed"}</div>
         </header>
 
-        {params.error ? (
+        {params.error && !fullyConnected ? (
           <div className="notice warning"><b>Gmail connection failed</b><span>{params.error}</span></div>
         ) : null}
 
