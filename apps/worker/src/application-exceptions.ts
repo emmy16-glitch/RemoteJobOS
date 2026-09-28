@@ -69,6 +69,7 @@ export async function createApplicationException(args: {
   fieldLabel?: string | null;
   payload?: Record<string, unknown>;
   dedupeKey: string;
+  notify?: boolean;
 }): Promise<ExceptionRow> {
   const rows = await request<ExceptionRow[]>(
     "application_exceptions?on_conflict=dedupe_key&select=*",
@@ -94,24 +95,26 @@ export async function createApplicationException(args: {
   const exception = rows[0];
   if (!exception) throw new Error("Could not create application exception");
 
-  const job = await jobLabel(args.applicationId);
-  await queueNotification({
-    applicationId: args.applicationId,
-    exceptionId: exception.id,
-    kind: "exception",
-    subject: `RemoteJobOS needs you: ${job.company} — ${job.title}`,
-    bodyText: [
-      args.title,
-      "",
-      args.detail,
-      "",
-      `Company: ${job.company}`,
-      `Role: ${job.title}`,
-      "",
-      "Open RemoteJobOS → Exceptions to resolve it. The application will remain paused until the blocker is resolved."
-    ].join("\n"),
-    dedupeKey: `exception-email:${exception.dedupe_key}`
-  });
+  if (args.notify !== false) {
+    const job = await jobLabel(args.applicationId);
+    await queueNotification({
+      applicationId: args.applicationId,
+      exceptionId: exception.id,
+      kind: "exception",
+      subject: `RemoteJobOS needs you: ${job.company} — ${job.title}`,
+      bodyText: [
+        args.title,
+        "",
+        args.detail,
+        "",
+        `Company: ${job.company}`,
+        `Role: ${job.title}`,
+        "",
+        "Open RemoteJobOS → Exceptions to resolve it. The application will remain paused until the blocker is resolved."
+      ].join("\n"),
+      dedupeKey: `exception-email:${exception.dedupe_key}`
+    });
+  }
 
   await request(`applications?id=eq.${encodeURIComponent(args.applicationId)}`, {
     method: "PATCH",
@@ -150,8 +153,31 @@ export async function createFieldExceptions(args: {
       fieldKey: field.key,
       fieldLabel: field.label,
       payload: { kind: field.kind, options: field.options ?? [], attemptId: args.attemptId },
-      dedupeKey: `field:${args.applicationId}:${field.key}:${args.attemptId}`
+      dedupeKey: `field:${args.applicationId}:${field.key}:${args.attemptId}`,
+      notify: false
     }));
   }
+
+  if (rows.length) {
+    const job = await jobLabel(args.applicationId);
+    await queueNotification({
+      applicationId: args.applicationId,
+      exceptionId: rows[0]?.id,
+      kind: "exception",
+      subject: `RemoteJobOS needs ${rows.length === 1 ? "one answer" : rows.length + " answers"}: ${job.company} — ${job.title}`,
+      bodyText: [
+        `RemoteJobOS paused this application because ${rows.length} field${rows.length === 1 ? "" : "s"} need your input.`,
+        "",
+        ...args.fields.map((field) => `• ${field.label}: ${field.reason}`),
+        "",
+        `Company: ${job.company}`,
+        `Role: ${job.title}`,
+        "",
+        "Open RemoteJobOS → Exceptions. Once all blockers are resolved, the same application run will resume automatically."
+      ].join("\n"),
+      dedupeKey: `field-exceptions:${args.applicationId}:${args.attemptId}`
+    });
+  }
+
   return rows;
 }
