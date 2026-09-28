@@ -1,4 +1,5 @@
 import {
+  auditResumePlan,
   materializeResumeFacts,
   planResume,
   type NormalizedJob,
@@ -108,6 +109,7 @@ export async function prepareCvPlans() {
     const plan = planResume(job, facts);
     const selectedFacts = materializeResumeFacts(plan, facts);
     if (!selectedFacts.length) return [];
+    const quality = auditResumePlan(job, plan, facts);
 
     return [{
       profile_id: profile.id,
@@ -115,7 +117,9 @@ export async function prepareCvPlans() {
       family: row.role_family,
       version: 1,
       content: {
-        strategy: "verified-facts-v1",
+        strategy: "verified-facts-v2",
+        template: "professional-single-column-v2",
+        quality,
         job: {
           title: row.title,
           company: row.company,

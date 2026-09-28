@@ -114,6 +114,63 @@ test("keeps CV plans fact-locked and selects relevant verified facts", async () 
 });
 
 
+
+
+test("keeps CV v2 balanced and audits verified relevance", async () => {
+  const { planResume, materializeResumeFacts, auditResumePlan } = await import("../src/resume.ts");
+  const job: NormalizedJob = {
+    source: "test",
+    externalId: "cv-v2",
+    title: "DevOps Engineer",
+    company: "Example",
+    description: "Remote role using Linux, Docker, GitHub Actions, CI/CD and cloud deployment.",
+    applyUrl: "https://example.com/apply",
+    remote: true,
+    remoteScope: "global",
+    roleFamily: "devops",
+    tags: ["linux", "docker", "github actions", "ci/cd"]
+  };
+  const facts = [
+    {
+      id: "exp",
+      kind: "experience" as const,
+      title: "DevOps Engineer",
+      organization: "Example Systems",
+      body: "Built and supported Linux deployment workflows.",
+      keywords: ["linux", "deployment"],
+      technologies: ["Docker", "GitHub Actions"],
+      roleFamilies: ["devops" as const]
+    },
+    {
+      id: "edu",
+      kind: "education" as const,
+      title: "B.Tech. Cybersecurity",
+      organization: "Example University",
+      body: "Bachelor of Technology in Cybersecurity.",
+      keywords: ["cybersecurity"]
+    },
+    ...Array.from({ length: 8 }, (_, index) => ({
+      id: "project-" + index,
+      kind: "project" as const,
+      title: "Docker Project " + index,
+      body: "Containerized a Linux service with Docker and CI/CD.",
+      keywords: ["docker", "linux", "ci/cd"],
+      roleFamilies: ["devops" as const]
+    }))
+  ];
+
+  const plan = planResume(job, facts, 8);
+  const selected = materializeResumeFacts(plan, facts);
+  const report = auditResumePlan(job, plan, facts);
+
+  assert.equal(plan.strategy, "verified-facts-v2");
+  assert.ok(selected.some((fact) => fact.kind === "experience"));
+  assert.ok(selected.some((fact) => fact.kind === "education"));
+  assert.ok(selected.filter((fact) => fact.kind === "project").length <= 4);
+  assert.ok(report.selectedFactCount > 0);
+  assert.ok(report.score > 0);
+});
+
 test("rejects a remote role when explicit country scope does not match profile", () => {
   const profile: CareerProfile = {
     skills: ["linux", "docker", "git"],
