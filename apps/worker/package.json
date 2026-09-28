@@ -14,7 +14,10 @@
     "sync-applications": "npm run build --workspace @remotejobos/core && tsx src/index.ts sync-applications",
     "process-application-tasks": "npm run build --workspace @remotejobos/core && tsx src/index.ts process-application-tasks",
     "decide-approval": "npm run build --workspace @remotejobos/core && tsx src/index.ts decide-approval",
-    "process-approved-submission": "npm run build --workspace @remotejobos/core && tsx src/index.ts process-approved-submission"
+    "process-approved-submission": "npm run build --workspace @remotejobos/core && tsx src/index.ts process-approved-submission",
+    "process-auto-submissions": "npm run build --workspace @remotejobos/core && tsx src/index.ts process-auto-submissions",
+    "sync-gmail": "npm run build --workspace @remotejobos/core && tsx src/index.ts sync-gmail",
+    "send-notifications": "npm run build --workspace @remotejobos/core && tsx src/index.ts send-notifications"
   },
   "dependencies": {
     "@remotejobos/core": "*",
