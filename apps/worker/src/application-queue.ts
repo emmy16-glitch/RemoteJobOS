@@ -414,6 +414,25 @@ async function syncProfileApplications(profile: ProfileRow): Promise<{
   const applications = await request<ApplicationRow[]>(
     `applications?select=id,job_id,profile_id,cv_version_id,status&profile_id=eq.${encodeURIComponent(profile.id)}&limit=1000`
   );
+
+  // Before a dry-run starts, keep the application pointed at the newest CV
+  // generated from the current profile/job inputs. Once it reaches review we
+  // freeze the reviewed CV version so approval cannot silently switch content.
+  for (const application of applications) {
+    const newestCv = newestCvByJob.get(application.job_id);
+    if (
+      newestCv &&
+      application.status === "cv-prepared" &&
+      application.cv_version_id !== newestCv.id
+    ) {
+      await updateApplication(application.id, {
+        cv_version_id: newestCv.id,
+        next_action: "cloud-dry-run"
+      });
+      application.cv_version_id = newestCv.id;
+    }
+  }
+
   const byJob = new Map(applications.map((application) => [application.job_id, application]));
 
   const rows = [...newestCvByJob.entries()]
