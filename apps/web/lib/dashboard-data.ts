@@ -22,6 +22,8 @@ export type DashboardData = {
   eligible: number;
   strongMatches: number;
   readyForReview: number;
+  needsAttention: number;
+  autoSubmitQueued: number;
   applications: number;
   applied: number;
   prepared: number;
@@ -95,6 +97,8 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
       eligible: 0,
       strongMatches: 0,
       readyForReview: 0,
+      needsAttention: 0,
+      autoSubmitQueued: 0,
       applications: 0,
       applied: 0,
       prepared: 0,
@@ -111,6 +115,8 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
     eligibleResult,
     strongResult,
     readyResult,
+    attentionResult,
+    autoSubmitResult,
     applicationsResult,
     appliedResult,
     preparedResult,
@@ -137,6 +143,16 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
     supabase
       .from("applications")
       .select("id", { count: "exact", head: true })
+      .eq("profile_id", profileId)
+      .eq("status", "needs-attention"),
+    supabase
+      .from("applications")
+      .select("id", { count: "exact", head: true })
+      .eq("profile_id", profileId)
+      .eq("status", "auto-submit-queued"),
+    supabase
+      .from("applications")
+      .select("id", { count: "exact", head: true })
       .eq("profile_id", profileId),
     supabase
       .from("applications")
@@ -147,12 +163,12 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
       .from("applications")
       .select("id", { count: "exact", head: true })
       .eq("profile_id", profileId)
-      .in("status", ["cv-prepared", "ready-for-review"]),
+      .in("status", ["cv-prepared", "ready-for-review", "auto-submit-queued", "needs-attention"]),
     supabase
-      .from("agent_tasks")
+      .from("applications")
       .select("id", { count: "exact", head: true })
-      .eq("task_type", "application-review")
-      .in("status", ["pending", "failed", "claimed"]),
+      .eq("profile_id", profileId)
+      .in("status", ["cv-prepared", "auto-submit-queued", "needs-attention", "ready-for-review"]),
     supabase
       .from("agent_events")
       .select("event_type,message,created_at")
@@ -214,6 +230,8 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
     eligible: eligibleResult.count ?? 0,
     strongMatches: strongResult.count ?? 0,
     readyForReview: readyResult.count ?? 0,
+    needsAttention: attentionResult.count ?? 0,
+    autoSubmitQueued: autoSubmitResult.count ?? 0,
     applications: applicationsResult.count ?? 0,
     applied: appliedResult.count ?? 0,
     prepared: preparedResult.count ?? 0,
