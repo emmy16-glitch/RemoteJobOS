@@ -39,6 +39,9 @@ type ApplicationRow = {
   job_id: string;
   profile_id: string | null;
   status: string;
+  submission_fenced_at: string | null;
+  submitted_at: string | null;
+  confirmation_verified_at: string | null;
 };
 
 type JobRow = {
@@ -107,6 +110,11 @@ async function preferencesForOwner(ownerId: string): Promise<NotificationPrefs |
 }
 
 export async function sendPendingNotifications(limit = 20): Promise<number> {
+  if (!gmailWorkerConfigured()) {
+    console.log("[gmail] worker OAuth secrets are not configured; notification outbox remains pending.");
+    return 0;
+  }
+
   const staleSendingBefore = new Date(Date.now() - 30 * 60 * 1000).toISOString();
   await request(
     `notification_outbox?status=eq.sending&updated_at=lt.${encodeURIComponent(staleSendingBefore)}`,
@@ -213,7 +221,7 @@ function matchApplication(
   jobs: Map<string, JobRow>
 ): ApplicationRow | undefined {
   const text = textForMatch([subject, snippet, sender].join(" "));
-  let best: { application: ApplicationRow; score: number } | undefined;
+  const candidates: Array<{ application: ApplicationRow; score: number }> = [];
 
   for (const application of applications) {
     const job = jobs.get(application.job_id);
@@ -230,10 +238,17 @@ function matchApplication(
       if (text.includes(token)) score += 1;
     }
 
-    if (!best || score > best.score) best = { application, score };
+    if (score >= 5) candidates.push({ application, score });
   }
 
-  return best && best.score >= 5 ? best.application : undefined;
+  candidates.sort((a, b) => b.score - a.score);
+  const best = candidates[0];
+  const second = candidates[1];
+
+  // Do not guess between two applications with equally strong email evidence.
+  // Ambiguous mail remains visible in Inbox but does not mutate lifecycle state.
+  if (!best || (second && second.score === best.score)) return undefined;
+  return best.application;
 }
 
 function lifecycleStatus(classification: string): string | undefined {
@@ -285,7 +300,7 @@ export async function syncGmailLifecycle(): Promise<number> {
       const profileIds = profiles.map((row) => row.id);
       const applications = profileIds.length
         ? await request<ApplicationRow[]>(
-            `applications?select=id,job_id,profile_id,status&profile_id=in.(${profileIds.join(",")})&limit=1000`
+            `applications?select=id,job_id,profile_id,status,submission_fenced_at,submitted_at,confirmation_verified_at&profile_id=in.(${profileIds.join(",")})&limit=1000`
           )
         : [];
       const jobIds = [...new Set(applications.map((application) => application.job_id))];
@@ -334,13 +349,72 @@ export async function syncGmailLifecycle(): Promise<number> {
 
         const nextStatus = lifecycleStatus(classification.classification);
         if (application && classification.classification === "application-received") {
+          const receivedAt = headerDate(date, message.internalDate) ?? new Date().toISOString();
+          const verifiedAt = new Date().toISOString();
+          const externallyConfirmed = !application.confirmation_verified_at;
+
           await request(`applications?id=eq.${encodeURIComponent(application.id)}`, {
             method: "PATCH",
             body: JSON.stringify({
-              next_action: "Employer receipt detected in Gmail. Lifecycle tracking is active.",
-              updated_at: new Date().toISOString()
+              status: "applied",
+              submitted_at: application.submitted_at ?? receivedAt,
+              confirmation_verified_at: application.confirmation_verified_at ?? verifiedAt,
+              next_action: externallyConfirmed
+                ? "Employer receipt detected in Gmail and used as external submission confirmation."
+                : "Employer receipt detected in Gmail. Lifecycle tracking is active.",
+              updated_at: verifiedAt
             })
           });
+
+          if (externallyConfirmed) {
+            await request(
+              `agent_runs?application_id=eq.${encodeURIComponent(application.id)}&status=neq.completed`,
+              {
+                method: "PATCH",
+                body: JSON.stringify({
+                  status: "completed",
+                  phase: "finalize",
+                  recovery_strategy: "already-complete",
+                  result: {
+                    terminal: "submitted",
+                    verified: true,
+                    reason: "Employer application receipt email provided external confirmation",
+                    gmailMessageId: message.id
+                  },
+                  last_error: null,
+                  completed_at: verifiedAt,
+                  updated_at: verifiedAt
+                })
+              }
+            );
+
+            await request(
+              `agent_approvals?application_id=eq.${encodeURIComponent(application.id)}&status=eq.approved`,
+              {
+                method: "PATCH",
+                body: JSON.stringify({
+                  status: "executed",
+                  executed_at: verifiedAt
+                })
+              }
+            );
+
+            await request(
+              `application_exceptions?application_id=eq.${encodeURIComponent(application.id)}&exception_type=eq.submit-uncertain&status=eq.open`,
+              {
+                method: "PATCH",
+                body: JSON.stringify({
+                  status: "resolved",
+                  resolution: {
+                    action: "gmail-external-confirmation",
+                    gmailMessageId: message.id
+                  },
+                  resolved_at: verifiedAt,
+                  updated_at: verifiedAt
+                })
+              }
+            );
+          }
 
           const job = jobs.get(application.job_id);
           if (job) {
@@ -356,7 +430,9 @@ export async function syncGmailLifecycle(): Promise<number> {
                 `Role: ${job.title}`,
                 `Email subject: ${subject}`,
                 "",
-                "Lifecycle tracking will continue automatically."
+                externallyConfirmed
+                  ? "This receipt was also used to safely reconcile the submission as confirmed."
+                  : "Lifecycle tracking will continue automatically."
               ].join("\n"),
               dedupeKey: `gmail-received:${message.id}`
             });
