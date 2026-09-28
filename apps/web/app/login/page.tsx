@@ -1,4 +1,4 @@
-import { signIn } from "../auth-actions";
+import { signIn, signUp } from "../auth-actions";
 import { publicSupabaseEnv } from "../../lib/supabase/env";
 
 export const dynamic = "force-dynamic";
@@ -6,33 +6,52 @@ export const dynamic = "force-dynamic";
 export default async function LoginPage({
   searchParams
 }: {
-  searchParams: Promise<{ error?: string; next?: string }>;
+  searchParams: Promise<{
+    error?: string;
+    next?: string;
+    mode?: string;
+    created?: string;
+    email?: string;
+  }>;
 }) {
   const params = await searchParams;
   const configured = publicSupabaseEnv().configured;
+  const signup = params.mode === "signup";
 
   return (
     <main className="loginShell">
-      <section className="loginCard">
+      <section className="loginCard loginCardV2">
         <div className="loginBrand">
-          <div className="mark">R</div>
+          <div className="brandMark" aria-hidden="true">
+            <span className="brandHandle" />
+            <span className="brandCase" />
+          </div>
           <div>
             <b>RemoteJobOS</b>
-            <span>Private control center</span>
+            <span>Find. Apply. Get Hired. Automatically.</span>
           </div>
         </div>
 
         <div className="loginCopy">
-          <p className="eyebrow">SECURE ACCESS</p>
-          <h1>Sign in</h1>
+          <p className="eyebrow">{signup ? "CREATE YOUR ACCOUNT" : "WELCOME BACK"}</p>
+          <h1>{signup ? "Start RemoteJobOS" : "Sign in"}</h1>
           <p>
-            Your application history, CVs and agent controls are private.
+            {signup
+              ? "Create your private control-room account. Your prepared career profile will attach automatically when the email matches."
+              : "Open your private dashboard to monitor applications, exceptions, CVs and employer responses."}
           </p>
         </div>
 
         {!configured ? (
           <div className="loginAlert">
-            Supabase Auth is not configured yet. Add the project URL and publishable key to the deployment environment.
+            Supabase Auth is not configured in this deployment yet.
+          </div>
+        ) : null}
+
+        {params.created ? (
+          <div className="loginAlert success">
+            Account created. Check your email if Supabase asks you to confirm it,
+            then sign in.
           </div>
         ) : null}
 
@@ -40,7 +59,19 @@ export default async function LoginPage({
           <div className="loginAlert error">{params.error}</div>
         ) : null}
 
-        <form action={signIn} className="loginForm">
+        <div className="authSwitch" aria-label="Authentication mode">
+          <a className={!signup ? "active" : ""} href={"/login?next=" + encodeURIComponent(params.next ?? "/")}>
+            Sign in
+          </a>
+          <a
+            className={signup ? "active" : ""}
+            href={"/login?mode=signup&next=" + encodeURIComponent(params.next ?? "/")}
+          >
+            Create account
+          </a>
+        </div>
+
+        <form action={signup ? signUp : signIn} className="loginForm">
           <input type="hidden" name="next" value={params.next ?? "/"} />
 
           <label>
@@ -51,6 +82,8 @@ export default async function LoginPage({
               autoComplete="email"
               required
               disabled={!configured}
+              defaultValue={params.email ?? ""}
+              placeholder="you@example.com"
             />
           </label>
 
@@ -59,19 +92,36 @@ export default async function LoginPage({
             <input
               name="password"
               type="password"
-              autoComplete="current-password"
+              autoComplete={signup ? "new-password" : "current-password"}
+              minLength={signup ? 8 : undefined}
               required
               disabled={!configured}
+              placeholder={signup ? "8+ characters" : "Your password"}
             />
           </label>
 
+          {signup ? (
+            <label>
+              <span>Confirm password</span>
+              <input
+                name="confirmPassword"
+                type="password"
+                autoComplete="new-password"
+                minLength={8}
+                required
+                disabled={!configured}
+                placeholder="Repeat your password"
+              />
+            </label>
+          ) : null}
+
           <button type="submit" disabled={!configured}>
-            Sign in
+            {signup ? "Create account" : "Sign in"}
           </button>
         </form>
 
         <p className="loginFoot">
-          RemoteJobOS does not expose service-role credentials to the browser.
+          Private by default. RemoteJobOS never exposes server credentials in the browser.
         </p>
       </section>
     </main>
