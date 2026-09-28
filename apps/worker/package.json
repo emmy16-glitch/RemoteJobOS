@@ -13,7 +13,8 @@
     "apply-one": "npm run build --workspace @remotejobos/core && tsx src/index.ts apply-one",
     "sync-applications": "npm run build --workspace @remotejobos/core && tsx src/index.ts sync-applications",
     "process-application-tasks": "npm run build --workspace @remotejobos/core && tsx src/index.ts process-application-tasks",
-    "decide-approval": "npm run build --workspace @remotejobos/core && tsx src/index.ts decide-approval"
+    "decide-approval": "npm run build --workspace @remotejobos/core && tsx src/index.ts decide-approval",
+    "process-approved-submission": "npm run build --workspace @remotejobos/core && tsx src/index.ts process-approved-submission"
   },
   "dependencies": {
     "@remotejobos/core": "*",
