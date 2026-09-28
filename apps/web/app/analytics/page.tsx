@@ -61,21 +61,10 @@ export default async function AnalyticsPage() {
   if (matchResult.error) throw new Error(matchResult.error.message);
 
   const applications = (appResult.data ?? []) as ApplicationRow[];
-  const applicationIds = applications.map((row) => row.id);
-  const exceptionResult = applicationIds.length
-    ? await supabase
-        .from("application_exceptions")
-        .select("status,exception_type")
-        .in("application_id", applicationIds)
-    : { data: [], error: null };
-
-  if (exceptionResult.error) throw new Error(exceptionResult.error.message);
-
-  const applications = (appResult.data ?? []) as ApplicationRow[];
   const matches = (matchResult.data ?? []) as MatchRow[];
   const applicationIds = applications.map((row) => row.id);
-
   let exceptions: ExceptionRow[] = [];
+
   if (applicationIds.length) {
     const exceptionResult = await supabase
       .from("application_exceptions")
