@@ -26,6 +26,16 @@ type JobRow = {
   source_url: string | null;
 };
 
+function looksGenericCareerLanding(value: string): boolean {
+  try {
+    const url = new URL(value);
+    const path = url.pathname.replace(/\/+$/, "");
+    return path === "" || /^\/(?:careers?|jobs?)$/i.test(path);
+  } catch {
+    return false;
+  }
+}
+
 async function getJson<T>(path: string): Promise<T> {
   if (!hasSupabase()) throw new Error("Supabase is required for application execution");
 
@@ -143,7 +153,11 @@ export async function runOneApplication(
   const job = jobs[0];
   if (!job) throw new Error(`Job not found for application: ${applicationId}`);
 
-  const target = await resolveApplicationTarget(job.apply_url);
+  const resolutionInput =
+    job.source_url && looksGenericCareerLanding(job.apply_url)
+      ? job.source_url
+      : job.apply_url;
+  const target = await resolveApplicationTarget(resolutionInput);
 
   await recordEvent(
     "application.target_resolved",
@@ -153,6 +167,7 @@ export async function runOneApplication(
       jobId: job.id,
       sourceUrl: job.source_url,
       originalApplyUrl: job.apply_url,
+      resolutionInput,
       resolvedApplyUrl: target.url,
       sourceHost: target.sourceHost,
       targetHost: target.targetHost,
@@ -161,8 +176,12 @@ export async function runOneApplication(
     }
   );
 
-  if (target.changed) {
-    const validation = await validateApplicationTarget(target.url, job.company);
+  {
+    const validation = await validateApplicationTarget(
+      target.url,
+      job.company,
+      job.title
+    );
     await recordEvent(
       validation.ok ? "application.target_validated" : "application.target_mismatch",
       validation.reason,
@@ -181,16 +200,16 @@ export async function runOneApplication(
     if (!validation.ok) {
       await patchApplication(
         applicationId,
-        "needs-attention",
-        "Resolved application page could not be verified as belonging to the expected employer. RemoteJobOS will not fill or submit it."
+        "shortlisted",
+        "Quarantined automatically: resolved page is not a verified exact-job application target."
       );
       throw new Error(
-        `Application target mismatch: expected employer "${job.company}" but resolved page could not be verified`
+        `Application target mismatch: expected exact job "${job.title}" at "${job.company}" but resolved page could not be verified`
       );
     }
   }
 
-  if (target.changed) {
+  if (target.changed || resolutionInput !== job.apply_url) {
     await patchJobApplyUrl(job.id, target.url);
     job.apply_url = target.url;
   }
