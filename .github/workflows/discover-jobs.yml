@@ -1,5 +1,7 @@
 name: Discover remote jobs
 
+# Registry-backed ATS boards are loaded at runtime.
+
 on:
   schedule:
     - cron: "56 * * * *"
