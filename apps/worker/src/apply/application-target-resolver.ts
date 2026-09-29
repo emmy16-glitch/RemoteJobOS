@@ -76,7 +76,8 @@ const NON_APPLICATION_HOSTS = [
   /(^|\.)x\.com$/i,
   /(^|\.)twitter\.com$/i,
   /(^|\.)linkedin\.com$/i,
-  /(^|\.)youtube\.com$/i
+  /(^|\.)youtube\.com$/i,
+  /(^|\.)producthunt\.com$/i
 ];
 
 function externalTargetScore(
