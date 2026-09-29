@@ -975,7 +975,7 @@ async function syncProfileApplications(profile: ProfileRow): Promise<{
     status: "pending",
     priority: 50,
     max_attempts: 3,
-    idempotency_key: `${REVIEW_TASK_TYPE}:${application.id}:${application.cv_version_id}`
+    idempotency_key: `${REVIEW_TASK_TYPE}:${application.id}:${application.cv_version_id}:${pipelineRevision()}`
   }));
 
   if (tasks.length) {
@@ -1077,6 +1077,14 @@ export async function syncApplications(): Promise<number> {
   );
 
   return created + queued;
+}
+
+function pipelineRevision(): string {
+  const raw =
+    process.env.REMOTEJOBOS_PIPELINE_REVISION ??
+    process.env.GITHUB_SHA ??
+    "local";
+  return raw.replace(/[^a-zA-Z0-9._-]+/g, "-").slice(0, 24) || "local";
 }
 
 function workerId(): string {
