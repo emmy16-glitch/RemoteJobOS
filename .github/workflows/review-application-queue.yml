@@ -2,8 +2,7 @@ name: Review application queue
 
 on:
   schedule:
-    # Offset from the top of the hour to reduce GitHub scheduler congestion.
-    - cron: "3,18,33,48 * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch:
     inputs:
       max_tasks:
@@ -15,19 +14,22 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: application-review-queue
-  cancel-in-progress: false
-
 jobs:
   review:
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        shard: [1, 2, 3, 4, 5]
     runs-on: ubuntu-latest
-    timeout-minutes: 55
+    timeout-minutes: 30
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       REMOTEJOBOS_MAX_REVIEW_TASKS: ${{ inputs.max_tasks || '10' }}
       REMOTEJOBOS_MAX_AUTO_SUBMIT_TASKS: ${{ inputs.max_tasks || '10' }}
+      REMOTEJOBOS_HARD_BATCH_CAP: "100"
+      REMOTEJOBOS_WORKER_SHARD: ${{ matrix.shard }}
       REMOTEJOBOS_ALLOW_SUBMIT: "false"
       ENRICHMENT_PROVIDER: none
     steps:
@@ -53,7 +55,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: application-review-evidence-${{ github.run_id }}
+          name: application-review-evidence-${{ github.run_id }}-${{ matrix.shard }}
           path: artifacts/screenshots/
           if-no-files-found: ignore
           retention-days: 7
