@@ -96,8 +96,42 @@ function deriveSafeApplicationAnswers(
   }
 
   const company = compactText(job.company) || "the company";
+  const title = compactText(job.title) || "this role";
   answers[`what agents would you recommend building for ${company.toLowerCase()}`] =
     `For ${company}, I would prioritize agents around repetitive, measurable workflows: customer/support triage, operational exception handling, content or asset quality checks, and internal engineering/knowledge assistance. I would keep consequential actions behind verification and clear escalation paths so the agents automate routine work while humans handle ambiguous or high-impact cases.`;
+
+  const profileSummary = verifiedProfileAnswer(profile, "professional summary");
+  const usesSupabase = facts.some((fact) =>
+    [fact.title, fact.body, ...(fact.technologies ?? []), ...(fact.keywords ?? [])]
+      .join(" ")
+      .toLowerCase()
+      .includes("supabase")
+  );
+
+  const interestAnswer =
+    `I am interested in joining ${company} because the ${title} role aligns closely with my hands-on work across software engineering, cybersecurity, DevOps, cloud infrastructure, QA automation, and production troubleshooting.` +
+    (usesSupabase && /supabase/i.test(company)
+      ? " I have also used Supabase and PostgreSQL in practical project work, so the product and engineering environment is directly relevant to tools I already work with."
+      : "") +
+    " I am especially motivated by roles where I can build reliable systems, improve developer or user workflows, and keep learning through real production problems.";
+
+  answers[`why are you interested in joining the ${company.toLowerCase()} team`] = interestAnswer;
+  answers[`why are you interested in joining ${company.toLowerCase()}`] = interestAnswer;
+  answers["why are you interested in this role"] = interestAnswer;
+  answers["why do you want to work here"] = interestAnswer;
+
+  const remoteAnswer =
+    "I have worked across software development, cybersecurity, DevOps, QA automation, deployment, and technical product work using GitHub-based workflows, automated tests, CI/CD, issue-based collaboration, logs, and written technical documentation. " +
+    "The practices that work best for me are clear task context, small reviewable changes, reproducible steps, frequent status updates, and automated checks that give the team shared evidence. " +
+    "The main challenge in async or remote work is missing context or delayed feedback, so I reduce that by documenting decisions, attaching evidence such as logs or test results, and making handoffs explicit.";
+
+  answers["tell us about your experience working in an async and or remote environment what practices or approaches have worked well for you what challenges have you faced"] = remoteAnswer;
+  answers["remote work experience"] = remoteAnswer;
+  answers["async work experience"] = remoteAnswer;
+
+  if (profileSummary) {
+    answers["professional summary"] = profileSummary;
+  }
 
   return answers;
 }
