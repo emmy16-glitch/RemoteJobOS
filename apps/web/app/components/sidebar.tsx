@@ -11,6 +11,15 @@ const items = [
   { label: "Settings", href: "/profile", icon: "⚙" }
 ] as const;
 
+const mobileItems = [
+  items[0],
+  items[1],
+  items[2],
+  items[3],
+  items[4],
+  items[6]
+] as const;
+
 type SidebarCounts = Partial<Record<
   "Jobs" | "Applications" | "Exceptions" | "Responses",
   number
@@ -85,7 +94,7 @@ export function Sidebar({
       </aside>
 
       <nav className="mobileNav" aria-label="Mobile primary navigation">
-        {items.slice(0, 5).map((item) => {
+        {mobileItems.map((item) => {
           const count = counts[item.label as keyof SidebarCounts];
           return (
             <a
