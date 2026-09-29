@@ -70,6 +70,79 @@ export function isAggregatorHost(url: string): boolean {
   return AGGREGATOR_HOSTS.some((pattern) => pattern.test(host));
 }
 
+const NON_APPLICATION_HOSTS = [
+  /(^|\.)facebook\.com$/i,
+  /(^|\.)instagram\.com$/i,
+  /(^|\.)x\.com$/i,
+  /(^|\.)twitter\.com$/i,
+  /(^|\.)linkedin\.com$/i,
+  /(^|\.)youtube\.com$/i
+];
+
+function externalTargetScore(
+  candidateUrl: string,
+  label: string,
+  sourceHost: string
+): number {
+  const targetHost = applicationHost(candidateUrl);
+  if (!targetHost || targetHost === sourceHost) return -1;
+  if (NON_APPLICATION_HOSTS.some((pattern) => pattern.test(targetHost))) return -1;
+
+  let score = 0;
+  if (isKnownApplicationHost(candidateUrl)) score += 100;
+  if (/apply|application|careers?|jobs?|join|work with us/i.test(label)) score += 60;
+  if (/apply|application|careers?|jobs?|join|work/i.test(candidateUrl)) score += 30;
+  if (!isAggregatorHost(candidateUrl)) score += 10;
+  return score;
+}
+
+async function externalApplicationTargetFromPage(
+  page: Page,
+  sourceUrl: string
+): Promise<string | null> {
+  const sourceHost = applicationHost(sourceUrl);
+
+  const links = await page.locator("a[href]").evaluateAll((nodes) =>
+    nodes.map((node) => {
+      const anchor = node as HTMLAnchorElement;
+      return {
+        href: anchor.href,
+        label: [
+          anchor.textContent ?? "",
+          anchor.getAttribute("aria-label") ?? "",
+          anchor.getAttribute("title") ?? ""
+        ].join(" ")
+      };
+    })
+  );
+
+  const ranked = links
+    .map((item) => ({
+      ...item,
+      score: externalTargetScore(item.href, item.label, sourceHost)
+    }))
+    .filter((item) => item.score >= 40)
+    .sort((a, b) => b.score - a.score);
+
+  if (ranked[0]?.href) {
+    return httpUrl(ranked[0].href)?.toString() ?? null;
+  }
+
+  const body = await page.locator("body").innerText().catch(() => "");
+  const textMatch = body.match(
+    /(?:application\s+url|how\s+do\s+you\s+apply)[\s\S]{0,500}?(https?:\/\/[^\s<>"')\]]+)/i
+  );
+
+  if (textMatch?.[1]) {
+    const candidate = textMatch[1].replace(/[.,;:!?]+$/, "");
+    if (externalTargetScore(candidate, "application url", sourceHost) >= 40) {
+      return httpUrl(candidate)?.toString() ?? null;
+    }
+  }
+
+  return null;
+}
+
 async function hasApplicationForm(page: Page): Promise<boolean> {
   const controls = page.locator(
     'input:not([type="hidden"]):not([type="submit"]):not([type="button"]), textarea, select'
@@ -155,12 +228,32 @@ async function resolveDeterministically(initialUrl: string): Promise<{
       return { url: page.url(), strategy: "direct-form" };
     }
 
+    const extractedTarget = await externalApplicationTargetFromPage(page, initialUrl);
+    if (extractedTarget) {
+      await page.goto(extractedTarget, {
+        waitUntil: "domcontentloaded",
+        timeout: 30_000
+      });
+      await page.waitForTimeout(700);
+      return { url: page.url(), strategy: "playwright-follow" };
+    }
+
     for (let step = 0; step < 3; step += 1) {
       const result = await clickApplyLikeControl(page);
       page = result.page;
       if (!result.moved) break;
 
       if (isKnownApplicationHost(page.url()) || await hasApplicationForm(page)) {
+        return { url: page.url(), strategy: "playwright-follow" };
+      }
+
+      const extractedAfterMove = await externalApplicationTargetFromPage(page, initialUrl);
+      if (extractedAfterMove) {
+        await page.goto(extractedAfterMove, {
+          waitUntil: "domcontentloaded",
+          timeout: 30_000
+        });
+        await page.waitForTimeout(700);
         return { url: page.url(), strategy: "playwright-follow" };
       }
     }
