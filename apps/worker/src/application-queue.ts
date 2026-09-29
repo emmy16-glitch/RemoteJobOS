@@ -323,6 +323,26 @@ async function processReviewTask(task: ClaimedTask, applicationId: string): Prom
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
 
+    if (reason.startsWith("Application target mismatch:")) {
+      await createApplicationException({
+        applicationId,
+        runId: run.id,
+        type: "policy-block",
+        title: "Application page did not match the expected employer",
+        detail: "RemoteJobOS resolved a page that could not be verified as belonging to this job's employer. The application was stopped before any form fill or submission.",
+        payload: { reason },
+        dedupeKey: `target-mismatch:${applicationId}:${run.id}`
+      }).catch(() => undefined);
+
+      await blockHarnessRun(run.id, applicationId, reason, {
+        taskType: task.task_type,
+        targetMismatch: true
+      }).catch(() => undefined);
+      await finishTask(task, true).catch(() => undefined);
+      console.log(`[application-queue] target mismatch blocked safely: ${applicationId}`);
+      return;
+    }
+
     if (reason.startsWith("No supported application adapter")) {
       await createApplicationException({
         applicationId,
