@@ -10,11 +10,11 @@ const titleFamilies: Array<[RoleFamily, RegExp]> = [
   ["it-support", /technical support|it support|help ?desk|application support|systems? administrator|linux administrator/i],
   ["ai-ml", /machine learning|ml engineer|ai engineer|ai product engineer|llm engineer/i],
   ["software", /software|developer|entwickler|frontend|front-end|backend|back-end|full.?stack|mobile developer|web engineer|api engineer|automation engineer|automatisierungsingenieur/i],
-  ["product-technical", /technical product|solutions engineer|technical customer success|developer advocate/i]
+  ["product-technical", /technical product|solutions engineer|solutions architect|solution architect|it architect|systems architect|technical customer success|developer advocate|\bsap\b/i]
 ];
 
 const clearlyNonTargetTitle =
-  /\b(marketing|content creator|video creation|sales|account executive|account manager|business development|customer service|kundenservice|recruiter|recruiting|human resources|hr coordinator|talent acquisition|voice actor|language trainer|student success coach)\b/i;
+  /\b(marketing|content creator|video creation|sales|vertrieb|verkauf|account executive|account manager|business development|customer service|kundenservice|kundendienst|recruiter|recruiting|human resources|hr coordinator|hr manager|talent acquisition|product management|product manager|voice actor|language trainer|student success coach|buchhalter|controller|marktforschung|befragungen|testkäufer|testkunde)\b/i;
 
 export function classifyRoleFamily(title: string, description = ""): RoleFamily {
   for (const [family, pattern] of titleFamilies) {
