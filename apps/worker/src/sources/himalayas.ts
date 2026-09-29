@@ -111,13 +111,19 @@ export const himalayasSource: JobSource = {
   async fetchJobs(): Promise<NormalizedJob[]> {
     const maxPages = Math.max(
       1,
-      Math.min(5, Number(process.env.HIMALAYAS_MAX_PAGES ?? "3") || 3)
+      Math.min(25, Number(process.env.HIMALAYAS_MAX_PAGES ?? "20") || 20)
     );
     const jobsByGuid = new Map<string, NormalizedJob>();
 
     const searches = [
-      { label: "worldwide", params: "worldwide=true&sort=recent" },
-      { label: "nigeria", params: "country=NG&sort=recent" }
+      {
+        label: "worldwide",
+        params: "worldwide=true&seniority=Entry-level,Mid-level&sort=recent"
+      },
+      {
+        label: "nigeria",
+        params: "country=NG&seniority=Entry-level,Mid-level&sort=recent"
+      }
     ];
 
     for (const search of searches) {
