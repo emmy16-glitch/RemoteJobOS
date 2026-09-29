@@ -100,6 +100,12 @@ export default async function CvsPage() {
           <div className="status">{cvs.length} versions</div>
         </header>
 
+        <nav className="sectionTabs" aria-label="AI and CV sections">
+          <a className="active" href="/cvs">CV history</a>
+          <a href="/answers">Answer vault</a>
+          <a href="/analytics">Analytics</a>
+        </nav>
+
         <div className="notice">
           <b>No generated career claims</b>
           <span>
