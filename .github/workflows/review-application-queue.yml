@@ -21,6 +21,7 @@ on:
       - "apps/worker/src/application-queue.ts"
       - "apps/worker/src/prepare-cvs.ts"
       - "packages/core/src/planner.ts"
+      - "packages/core/src/scoring.ts"
 
 permissions:
   contents: read
@@ -49,6 +50,8 @@ jobs:
         run: |
           test -n "$SUPABASE_URL"
           test -n "$SUPABASE_SERVICE_ROLE_KEY"
+      - name: Re-score the current remote-job snapshot
+        run: npm run worker:match
       - name: Prepare CV plans for newest strong matches
         run: npm run worker:prepare-cvs
       - name: Create or refresh application rows and queue review tasks
