@@ -318,6 +318,13 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
         .filter(Boolean)
     );
 
+    const telephoneLabels = new Set(
+      raw
+        .filter((item) => item.type === "tel")
+        .map((item) => normalized(bestFieldLabel(item)))
+        .filter(Boolean)
+    );
+
     for (const item of raw) {
       if (item.type !== "checkbox") continue;
       const key = checkboxGroupKey(item);
@@ -342,6 +349,16 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
         anonymous &&
         item.role !== "combobox" &&
         typeaheadLabels.has(normalized(bestFieldLabel(item)))
+      ) {
+        continue;
+      }
+
+      const fieldLabel = normalized(bestFieldLabel(item));
+      const fieldIdentity = normalized(item.id + " " + item.name);
+      if (
+        item.type !== "tel" &&
+        telephoneLabels.has(fieldLabel) &&
+        /country|search|dial/.test(fieldIdentity + " " + normalized(item.type))
       ) {
         continue;
       }
@@ -490,13 +507,20 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
     const issues: VerificationIssue[] = [];
 
     const captcha = page.locator(
-      'iframe[src*="recaptcha"], iframe[src*="hcaptcha"], [data-sitekey], [class*="captcha" i]'
+      'iframe[src*="recaptcha"]:visible, iframe[src*="hcaptcha"]:visible, [data-sitekey]:visible, [class*="captcha" i]:visible'
     );
-    if (await captcha.count()) {
+    const challengeText = await page.locator("body").innerText().catch(() => "");
+    const visibleChallenge =
+      (await captcha.count()) > 0 ||
+      /verify you are human|complete the captcha|security verification|checking your browser/i.test(
+        challengeText.slice(0, 5_000)
+      );
+
+    if (visibleChallenge) {
       issues.push({
         fieldKey: "captcha",
         code: "unverified",
-        message: "CAPTCHA or anti-bot challenge detected; human review is required"
+        message: "Visible CAPTCHA or anti-bot challenge detected; human review is required"
       });
     }
 
