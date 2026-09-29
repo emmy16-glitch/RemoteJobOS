@@ -485,3 +485,21 @@ test("salary expectation fields can be reused only when explicitly auto-approved
   );
   assert.deepEqual(allowed[0]?.action, { type: "fill", value: "12000" });
 });
+
+
+test("does not fabricate compensation attestations", async () => {
+  const { salaryExpectationAnswers } = await import("../src/salary.ts");
+  const answers = salaryExpectationAnswers({
+    title: "Senior Software Engineer",
+    roleFamily: "software",
+    salaryText: "USD $60,000 - $90,000 per year",
+    description: "Please review our compensation range before applying."
+  });
+
+  assert.equal(answers["have you reviewed the compensation details"], undefined);
+  assert.equal(answers["have you reviewed the salary range"], undefined);
+  assert.equal(
+    answers["have you reviewed the compensation details salary range provided in the job description above"],
+    undefined
+  );
+});
