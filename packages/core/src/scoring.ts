@@ -19,7 +19,10 @@ const executiveTitle =
   /\b(chief|cto|cio|ciso|vice president|vp\b|head of|director|managing director|general manager)\b/i;
 
 const clearlyNonTargetTitle =
-  /\b(marketing|content creator|video creation|sales|account executive|account manager|business development|customer service|kundenservice|recruiter|recruiting|human resources|hr coordinator|talent acquisition|voice actor|language trainer|student success coach)\b/i;
+  /\b(marketing|content creator|video creation|sales|vertrieb|verkauf|account executive|account manager|business development|customer service|kundenservice|kundendienst|recruiter|recruiting|human resources|hr coordinator|hr manager|talent acquisition|product management|product manager|voice actor|language trainer|student success coach|buchhalter|controller|marktforschung|befragungen|testkäufer|testkunde)\b/i;
+
+const technicalTitleSignal =
+  /security|cyber|soc analyst|appsec|pentest|penetration|iam|grc|threat|vulnerability|software|developer|entwickler|frontend|front-end|backend|back-end|full.?stack|devops|site reliability|\bsre\b|platform engineer|cloud|data analyst|data engineer|analytics engineer|data scientist|quality assurance|\bqa\b|test automation|sdet|network engineer|network administrator|noc analyst|technical support|it support|help ?desk|systems? administrator|linux administrator|machine learning|ml engineer|ai engineer|ai product engineer|llm engineer|technical product|solutions engineer|solutions architect|solution architect|it architect|systems architect|developer advocate|automation engineer|automatisierungsingenieur|robotics|\bsap\b/i;
 
 export function automaticApplicationEligibility(
   job: Pick<NormalizedJob, "title" | "roleFamily">
@@ -29,6 +32,9 @@ export function automaticApplicationEligibility(
   }
   if (clearlyNonTargetTitle.test(job.title)) {
     return { allowed: false, reason: "Title is outside the technical auto-apply scope" };
+  }
+  if (!technicalTitleSignal.test(job.title)) {
+    return { allowed: false, reason: "Title does not contain a verified technical-role signal" };
   }
   if (!automaticRoleFamilies.has(job.roleFamily)) {
     return { allowed: false, reason: "Role family requires review instead of unattended auto-apply" };
