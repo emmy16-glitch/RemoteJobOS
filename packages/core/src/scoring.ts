@@ -2,6 +2,40 @@ import type { CareerProfile, JobScore, NormalizedJob } from "./types.js";
 
 const seniorityRank = { intern: 0, entry: 1, junior: 2, mid: 3, senior: 4 } as const;
 
+const automaticRoleFamilies = new Set([
+  "cybersecurity",
+  "software",
+  "devops",
+  "data",
+  "qa",
+  "cloud",
+  "it-support",
+  "networking",
+  "ai-ml",
+  "product-technical"
+]);
+
+const executiveTitle =
+  /\b(chief|cto|cio|ciso|vice president|vp\b|head of|director|managing director|general manager)\b/i;
+
+const clearlyNonTargetTitle =
+  /\b(marketing|content creator|video creation|sales|account executive|account manager|business development|customer service|kundenservice|recruiter|recruiting|human resources|hr coordinator|talent acquisition|voice actor|language trainer|student success coach)\b/i;
+
+export function automaticApplicationEligibility(
+  job: Pick<NormalizedJob, "title" | "roleFamily">
+): { allowed: boolean; reason: string } {
+  if (executiveTitle.test(job.title)) {
+    return { allowed: false, reason: "Executive-level title is outside unattended auto-apply scope" };
+  }
+  if (clearlyNonTargetTitle.test(job.title)) {
+    return { allowed: false, reason: "Title is outside the technical auto-apply scope" };
+  }
+  if (!automaticRoleFamilies.has(job.roleFamily)) {
+    return { allowed: false, reason: "Role family requires review instead of unattended auto-apply" };
+  }
+  return { allowed: true, reason: "Role is inside the technical auto-apply scope" };
+}
+
 const euCountries = new Set([
   "austria", "belgium", "bulgaria", "croatia", "cyprus", "czechia", "czech republic",
   "denmark", "estonia", "finland", "france", "germany", "greece", "hungary", "ireland",
@@ -174,6 +208,17 @@ export function scoreJob(job: NormalizedJob, profile: CareerProfile): JobScore {
   breakdown.remote = 20;
   reasons.push("Remote role");
 
+  const autoScope = automaticApplicationEligibility(job);
+  if (!autoScope.allowed && executiveTitle.test(job.title)) {
+    return {
+      total: 20,
+      decision: "reject",
+      reasons: ["Remote role", autoScope.reason],
+      missingSignals,
+      breakdown
+    };
+  }
+
   const geography = geographicEligibility(job, profile);
   reasons.push(geography.reason);
 
@@ -187,12 +232,15 @@ export function scoreJob(job: NormalizedJob, profile: CareerProfile): JobScore {
     };
   }
 
-  if (profile.roleFamilies.includes(job.roleFamily)) {
+  if (profile.roleFamilies.includes(job.roleFamily) && autoScope.allowed) {
     breakdown.role = 20;
     reasons.push(`Target role family: ${job.roleFamily}`);
-  } else {
+  } else if (autoScope.allowed) {
     breakdown.role = 8;
     reasons.push("Adjacent technical role");
+  } else {
+    breakdown.role = 0;
+    missingSignals.push(autoScope.reason);
   }
 
   const text = `${job.title} ${job.description} ${job.tags.join(" ")}`.toLowerCase();
@@ -233,7 +281,7 @@ export function scoreJob(job: NormalizedJob, profile: CareerProfile): JobScore {
   const decision =
     blocked
       ? "reject"
-      : geography.forceReview
+      : geography.forceReview || !autoScope.allowed
         ? "review"
         : total < 45
           ? "reject"
