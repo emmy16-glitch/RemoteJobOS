@@ -2,7 +2,8 @@ name: Review application queue
 
 on:
   schedule:
-    - cron: "0,15,30,45 * * * *"
+    # Offset from the top of the hour to reduce GitHub scheduler congestion.
+    - cron: "3,18,33,48 * * * *"
   workflow_dispatch:
     inputs:
       max_tasks:
@@ -21,11 +22,12 @@ concurrency:
 jobs:
   review:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 55
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       REMOTEJOBOS_MAX_REVIEW_TASKS: ${{ inputs.max_tasks || '10' }}
+      REMOTEJOBOS_MAX_AUTO_SUBMIT_TASKS: ${{ inputs.max_tasks || '10' }}
       REMOTEJOBOS_ALLOW_SUBMIT: "false"
       ENRICHMENT_PROVIDER: none
     steps:
@@ -43,6 +45,10 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Process leased application dry-run tasks
         run: npm run worker:process-application-tasks
+      - name: Submit only policy-authorized verified applications
+        env:
+          REMOTEJOBOS_ALLOW_SUBMIT: "true"
+        run: npm run process-auto-submissions --workspace @remotejobos/worker -- "${{ inputs.max_tasks || '10' }}"
       - name: Upload non-sensitive browser evidence
         if: always()
         uses: actions/upload-artifact@v4
