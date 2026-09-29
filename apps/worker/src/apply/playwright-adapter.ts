@@ -187,9 +187,37 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
     await this.page.waitForTimeout(500);
 
     let page = this.page;
+    const ashby = /(?:^|\.)ashbyhq\.com$/i.test(new URL(page.url()).hostname);
+
+    if (ashby) {
+      // Ashby is a React SPA. DOMContentLoaded fires before the application
+      // controls are mounted, so scanning immediately produces a false
+      // "No usable application form" failure.
+      if (!/\/application\/?(?:[?#].*)?$/i.test(page.url())) {
+        const target = page.url().replace(/[?#].*$/, "").replace(/\/$/, "") + "/application";
+        await page.goto(target, { waitUntil: "domcontentloaded", timeout: 30_000 });
+      }
+
+      await page
+        .locator("#_systemfield_name, .ashby-application-form-field-entry, input, textarea")
+        .first()
+        .waitFor({ state: "attached", timeout: 12_000 })
+        .catch(() => undefined);
+      await page.waitForTimeout(1_000);
+    }
+
     if (this.preferApplyLink || await this.controls(page).count() < 2) {
       page = await this.followApplyLink(page);
       this.page = page;
+
+      if (/(?:^|\.)ashbyhq\.com$/i.test(new URL(page.url()).hostname)) {
+        await page
+          .locator("#_systemfield_name, .ashby-application-form-field-entry, input, textarea")
+          .first()
+          .waitFor({ state: "attached", timeout: 12_000 })
+          .catch(() => undefined);
+        await page.waitForTimeout(1_000);
+      }
     }
 
     return page;
