@@ -107,6 +107,7 @@ type ApplicationRow = {
   cv_version_id: string | null;
   status: string;
   autonomy_mode?: string;
+  next_action?: string | null;
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -879,7 +880,7 @@ async function syncProfileApplications(profile: ProfileRow): Promise<{
   }
 
   const applications = await request<ApplicationRow[]>(
-    `applications?select=id,job_id,profile_id,cv_version_id,status,autonomy_mode&profile_id=eq.${encodeURIComponent(profile.id)}&limit=1000`
+    `applications?select=id,job_id,profile_id,cv_version_id,status,autonomy_mode,next_action&profile_id=eq.${encodeURIComponent(profile.id)}&limit=1000`
   );
 
   const jobs = await request<JobAutomationRow[]>(
@@ -896,18 +897,33 @@ async function syncProfileApplications(profile: ProfileRow): Promise<{
   // later refresh resolves a clean employer URL, restore them automatically.
   for (const application of applications) {
     const eligible = autoApplyEligible(jobsById.get(application.job_id), matchesByJob.get(application.job_id));
-    if (!eligible && application.status === "cv-prepared") {
+    const legacyRetryableReview =
+      application.status === "ready-for-review" &&
+      /^(?:No usable application form|No verified browser adapter|Retryable automation failure:|No unambiguous visible submit control|Submit control is present but temporarily disabled)/i.test(
+        application.next_action ?? ""
+      );
+
+    if (
+      !eligible &&
+      (application.status === "cv-prepared" || legacyRetryableReview)
+    ) {
       await updateApplication(application.id, {
         status: "shortlisted",
         next_action: "Discovery-only: no validated employer application URL is available yet."
       });
       application.status = "shortlisted";
-    } else if (eligible && application.status === "shortlisted") {
+      application.next_action =
+        "Discovery-only: no validated employer application URL is available yet.";
+    } else if (
+      eligible &&
+      (application.status === "shortlisted" || legacyRetryableReview)
+    ) {
       await updateApplication(application.id, {
         status: "cv-prepared",
         next_action: "cloud-dry-run"
       });
       application.status = "cv-prepared";
+      application.next_action = "cloud-dry-run";
     }
   }
 
