@@ -18,7 +18,7 @@ type CareerProfilePayload = {
   facts?: ProfileFact[];
 };
 
-function compactText(value: string | undefined): string {
+function compactText(value: string | null | undefined): string {
   return (value ?? "").replace(/\s+/g, " ").trim();
 }
 
