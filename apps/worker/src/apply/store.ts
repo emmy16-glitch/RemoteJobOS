@@ -22,6 +22,23 @@ function compactText(value: string | null | undefined): string {
   return (value ?? "").replace(/\s+/g, " ").trim();
 }
 
+function normalizedAnswerKey(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function verifiedProfileAnswer(
+  profile: CareerProfilePayload,
+  ...keys: string[]
+): string | undefined {
+  const wanted = new Set(keys.map(normalizedAnswerKey));
+  for (const [key, value] of Object.entries(profile.verifiedAnswers ?? {})) {
+    if (wanted.has(normalizedAnswerKey(key)) && compactText(value)) {
+      return compactText(value);
+    }
+  }
+  return undefined;
+}
+
 function deriveSafeApplicationAnswers(
   profile: CareerProfilePayload,
   job: { source: string | null; title: string | null; company: string | null; description: string | null }
@@ -44,6 +61,33 @@ function deriveSafeApplicationAnswers(
   });
 
   const answers: Record<string, string> = {};
+
+  const fullName = verifiedProfileAnswer(
+    profile,
+    "full name",
+    "fullname",
+    "full_name",
+    "legal name"
+  );
+  if (fullName) {
+    const parts = fullName.split(/\s+/).filter(Boolean);
+    const firstName = parts[0];
+    const lastName = parts.length > 1 ? parts[parts.length - 1] : undefined;
+
+    answers["full name"] = fullName;
+    if (firstName) {
+      answers["first name"] = firstName;
+      answers.firstname = firstName;
+      answers.first_name = firstName;
+    }
+    if (lastName) {
+      answers["last name"] = lastName;
+      answers.lastname = lastName;
+      answers.last_name = lastName;
+      answers.surname = lastName;
+    }
+  }
+
   if (built.length) {
     answers["what agents have you built"] =
       "I have built and worked on agent-oriented and automation systems including " +
