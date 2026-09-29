@@ -95,7 +95,7 @@ export function salaryExpectationAnswers(job: SalaryExpectationJob): Record<stri
   const monthly = String(monthlyUsd);
   const annual = String(annualUsd);
 
-  return {
+  const answers: Record<string, string> = {
     "salary expectation": generic,
     "salary expectations": generic,
     "expected salary": generic,
@@ -114,4 +114,18 @@ export function salaryExpectationAnswers(job: SalaryExpectationJob): Record<stri
     "desired annual salary": annual,
     "annual compensation expectation": annual
   };
+
+  const compensationEvidence = [job.salaryText, job.description]
+    .filter(Boolean)
+    .join(" ");
+  if (
+    /salary|compensation/i.test(compensationEvidence) &&
+    /(?:\$|\bUSD\b|salary range|compensation range)/i.test(compensationEvidence)
+  ) {
+    answers["have you reviewed the compensation details salary range provided in the job description above"] = "Yes";
+    answers["have you reviewed the compensation details"] = "Yes";
+    answers["have you reviewed the salary range"] = "Yes";
+  }
+
+  return answers;
 }
