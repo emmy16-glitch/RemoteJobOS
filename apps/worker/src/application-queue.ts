@@ -727,6 +727,61 @@ async function syncProfileApplications(profile: ProfileRow): Promise<{
   return { created: created.length, queued: tasks.length };
 }
 
+
+async function collapseDuplicatePendingReviewTasks(): Promise<number> {
+  const rows = await request<Array<{
+    id: string;
+    payload: Record<string, unknown>;
+    created_at: string;
+  }>>(
+    "agent_tasks?select=id,payload,created_at&task_type=eq.application-review&status=eq.pending&order=created_at.desc&limit=2000"
+  );
+
+  const seenApplications = new Set<string>();
+  const duplicateIds: string[] = [];
+
+  for (const row of rows) {
+    const applicationId =
+      typeof row.payload?.applicationId === "string"
+        ? row.payload.applicationId
+        : "";
+
+    if (!applicationId) continue;
+    if (seenApplications.has(applicationId)) {
+      duplicateIds.push(row.id);
+    } else {
+      seenApplications.add(applicationId);
+    }
+  }
+
+  if (!duplicateIds.length) return 0;
+
+  const chunkSize = 100;
+  for (let index = 0; index < duplicateIds.length; index += chunkSize) {
+    const chunk = duplicateIds.slice(index, index + chunkSize);
+    await request(
+      `agent_tasks?id=in.(${chunk.join(",")})`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          status: "blocked",
+          last_error: "Superseded duplicate review task.",
+          completed_at: new Date().toISOString(),
+          worker_id: null,
+          lease_token: null,
+          lease_expires_at: null,
+          claimed_at: null
+        })
+      }
+    );
+  }
+
+  console.log(
+    `[application-queue] blocked ${duplicateIds.length} superseded duplicate review task(s)`
+  );
+  return duplicateIds.length;
+}
+
 export async function syncApplications(): Promise<number> {
   if (!hasSupabase()) {
     console.log("[application-queue] Supabase is not configured; skipping sync.");
@@ -750,8 +805,10 @@ export async function syncApplications(): Promise<number> {
     queued += result.queued;
   }
 
+  const deduplicated = await collapseDuplicatePendingReviewTasks();
+
   console.log(
-    `[application-queue] profiles=${profiles.length} created=${created} queued=${queued}`
+    `[application-queue] profiles=${profiles.length} created=${created} queued=${queued} deduplicated=${deduplicated}`
   );
 
   return created + queued;
