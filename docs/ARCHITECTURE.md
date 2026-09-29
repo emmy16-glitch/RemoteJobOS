@@ -7,7 +7,7 @@ RemoteJobOS is cloud-first. A user's laptop is never part of the critical execut
 1. **Remote-only discovery, globally.** Discover first, classify geographic eligibility second.
 2. **Truthful profile data.** AI may select and rephrase verified facts; it may not invent career history.
 3. **Deterministic before AI.** Remote checks, duplicate detection, role families, seniority and hard eligibility rules should not consume LLM calls.
-4. **Review gate first.** Auto-submit is an explicit later capability, never the initial default.
+4. **Auto-except, not auto-blind.** Every application is dry-run verified first; clean runs may auto-submit under the policy fence, while CAPTCHA, unknown/sensitive answers and uncertain submit outcomes pause only that application.
 5. **Audit every action.** Discovery, matching, CV generation and application attempts emit events.
 6. **Replaceable providers.** Job sources, AI providers, storage and browser adapters expose narrow interfaces.
 
@@ -17,7 +17,7 @@ RemoteJobOS is cloud-first. A user's laptop is never part of the critical execut
 - **Database:** Supabase/Postgres.
 - **Discovery/worker:** Node.js jobs executed by GitHub Actions schedules initially.
 - **AI:** Optional Groq adapter using an OpenAI-compatible HTTP API. Model is environment-configured.
-- **Browser automation:** Playwright adapters will run in GitHub-hosted workers. The foundation workflow is review/dry-run only.
+- **Browser automation:** deterministic Playwright adapters run first. A target resolver follows job-board Apply links to the employer form, named ATS adapters cover common platforms, a guarded generic-form adapter handles ordinary sites, and optional Stagehand v4 is a self-healing navigation fallback only.
 - **Email:** standalone Gmail OAuth/API integration is planned; the ChatGPT Gmail connection is not treated as application infrastructure.
 
 ## Pipeline
@@ -25,7 +25,7 @@ RemoteJobOS is cloud-first. A user's laptop is never part of the critical execut
 ```
 Sources -> normalize -> remote gate -> deduplicate -> classify
        -> deterministic eligibility -> match -> optional AI enrichment
-       -> CV composition -> review -> ATS browser adapter -> status tracking
+       -> CV composition -> target resolver -> deterministic ATS/form adapter\n       -> optional adaptive navigation fallback -> verify -> fenced submit -> status tracking
        -> Gmail lifecycle -> analytics
 ```
 
@@ -164,7 +164,54 @@ confirm   → browser + submission + confirmation + evidence
 finalize  → evidence + tracking
 ```
 
-The current scheduled review workflow remains dry-run only. Live submission is
-not enabled automatically. A separate manual workflow requires an explicit
-approval ID and an explicit live-submission confirmation before setting
-`REMOTEJOBOS_ALLOW_SUBMIT=true`.
+The scheduled review workflow remains dry-run only, but profiles in `auto-except`
+mode can authorize a durable auto-submit task after successful deterministic
+verification. The separate auto-submit worker is the only scheduled lane that
+sets `REMOTEJOBOS_ALLOW_SUBMIT=true`; it still passes through the submission
+policy fence and post-submit confirmation checks.
+
+## Layered browser architecture
+
+RemoteJobOS deliberately avoids making a model the owner of browser state or
+submission policy.
+
+```
+job-board/source URL
+        ↓
+application target resolver
+        ├─ known ATS URL → use directly
+        ├─ deterministic Playwright Apply-link follow
+        └─ optional Stagehand self-healing navigation fallback
+        ↓
+named ATS adapter
+        ├─ Greenhouse / Lever / Ashby
+        ├─ Workday / SmartRecruiters / Workable / iCIMS
+        ├─ Recruitee / Teamtailor / Personio / BambooHR / Jobvite
+        ├─ SuccessFactors / Taleo / Oracle / Eightfold
+        └─ guarded generic web-form fallback
+        ↓
+scan → deterministic verified-answer plan → fill → DOM verify
+        ↓
+CAPTCHA / unknown or sensitive answer? → exception only
+        ↓
+durable policy authorization + submit fence
+        ↓
+submit → repeated confirmation checks → lifecycle tracking
+```
+
+The resolver persists a newly discovered employer application URL back onto the
+job record, so later attempts reuse the direct target instead of repeatedly
+starting from an aggregator page.
+
+Stagehand is optional and intentionally constrained to navigation. It never gets
+career-profile answers, never solves CAPTCHA, and never owns the final Submit
+action. This keeps the core path free/deterministic while adding a self-healing
+fallback for unfamiliar listing pages when a model key is configured.
+
+Browser Use / BrowserCode and agent-browser influenced the capability-oriented
+browser design, but are not runtime dependencies: Browser Use is centered on a
+different Python/agent runtime and agent-browser currently targets Node 24,
+while RemoteJobOS runs Node 22. Temporal's durable-workflow semantics are
+implemented here through existing Supabase leases, checkpoints, idempotency,
+submission fencing and recovery states instead of adding another infrastructure
+service.
