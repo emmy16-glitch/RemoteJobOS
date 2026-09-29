@@ -1,4 +1,5 @@
 import { createDefaultAdapterRegistry } from "./default-adapters.js";
+import { resolveApplicationTarget } from "./application-target-resolver.js";
 import { runApplicationPipeline, type PipelineOutcome } from "./engine.js";
 import {
   SupabaseApplicationStore,
@@ -19,6 +20,7 @@ type JobRow = {
   title: string;
   company: string;
   apply_url: string;
+  source_url: string | null;
 };
 
 async function getJson<T>(path: string): Promise<T> {
@@ -67,6 +69,30 @@ async function patchApplication(
   }
 }
 
+async function patchJobApplyUrl(jobId: string, applyUrl: string): Promise<void> {
+  if (!hasSupabase()) return;
+
+  const response = await fetch(
+    `${config.supabaseUrl}/rest/v1/jobs?id=eq.${encodeURIComponent(jobId)}`,
+    {
+      method: "PATCH",
+      headers: {
+        apikey: config.supabaseServiceRoleKey,
+        authorization: `Bearer ${config.supabaseServiceRoleKey}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        apply_url: applyUrl,
+        last_seen_at: new Date().toISOString()
+      })
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Resolved application URL save failed: ${response.status} ${await response.text()}`);
+  }
+}
+
 async function recordEvent(
   eventType: string,
   message: string,
@@ -109,25 +135,54 @@ export async function runOneApplication(
   if (!application) throw new Error(`Application not found: ${applicationId}`);
 
   const jobs = await getJson<JobRow[]>(
-    `jobs?select=id,title,company,apply_url&id=eq.${encodeURIComponent(application.job_id)}&limit=1`
+    `jobs?select=id,title,company,apply_url,source_url&id=eq.${encodeURIComponent(application.job_id)}&limit=1`
   );
   const job = jobs[0];
   if (!job) throw new Error(`Job not found for application: ${applicationId}`);
 
+  const target = await resolveApplicationTarget(job.apply_url);
+
+  await recordEvent(
+    "application.target_resolved",
+    `Application target resolved with ${target.strategy}`,
+    {
+      applicationId,
+      jobId: job.id,
+      sourceUrl: job.source_url,
+      originalApplyUrl: job.apply_url,
+      resolvedApplyUrl: target.url,
+      sourceHost: target.sourceHost,
+      targetHost: target.targetHost,
+      strategy: target.strategy,
+      adaptiveAttempted: target.adaptiveAttempted
+    }
+  );
+
+  if (target.changed) {
+    await patchJobApplyUrl(job.id, target.url);
+    job.apply_url = target.url;
+  }
+
   const registry = createDefaultAdapterRegistry();
-  const adapter = registry.resolve(job.apply_url);
+  const adapter = registry.resolve(target.url);
   if (!adapter) {
     await patchApplication(
       applicationId,
       "ready-for-review",
-      "No verified browser adapter exists for this ATS yet"
+      "No verified browser adapter exists for this application target yet"
     );
     await recordEvent(
       "application.needs_adapter",
-      "No supported ATS adapter matched this application URL",
-      { applicationId, jobId: job.id, company: job.company, applyUrl: job.apply_url }
+      "No supported ATS adapter matched the resolved application URL",
+      {
+        applicationId,
+        jobId: job.id,
+        company: job.company,
+        applyUrl: target.url,
+        strategy: target.strategy
+      }
     );
-    throw new Error(`No supported application adapter for ${job.apply_url}`);
+    throw new Error(`No supported application adapter for ${target.url}`);
   }
 
   const submitEnabled =
@@ -156,6 +211,8 @@ export async function runOneApplication(
       title: job.title,
       company: job.company,
       adapter: adapter.name,
+      browserStrategy: target.strategy,
+      targetHost: target.targetHost,
       mode
     }
   );
@@ -163,7 +220,7 @@ export async function runOneApplication(
   const outcome = await runApplicationPipeline(
     {
       applicationId,
-      jobUrl: job.apply_url,
+      jobUrl: target.url,
       workerId,
       dryRun: !submitEnabled,
       assets: resumePath ? { resume: resumePath } : undefined,
@@ -176,7 +233,7 @@ export async function runOneApplication(
   if (outcome.status !== "submitted") {
     const nextAction =
       outcome.status === "dry-run-verified"
-        ? "Dry-run passed: form filled and DOM values verified; ready for approval"
+        ? "Dry-run passed: form filled and DOM values verified; ready for policy-authorized submission"
         : outcome.reason;
 
     await patchApplication(applicationId, "ready-for-review", nextAction);
@@ -189,6 +246,8 @@ export async function runOneApplication(
       applicationId,
       jobId: job.id,
       adapter: adapter.name,
+      browserStrategy: target.strategy,
+      targetHost: target.targetHost,
       mode,
       outcome
     }
