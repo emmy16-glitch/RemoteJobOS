@@ -70,6 +70,93 @@ export function isAggregatorHost(url: string): boolean {
   return AGGREGATOR_HOSTS.some((pattern) => pattern.test(host));
 }
 
+const GENERIC_COMPANY_WORDS = new Set([
+  "and", "the", "inc", "llc", "ltd", "limited", "plc", "corp", "corporation",
+  "company", "group", "holdings", "services", "service", "solutions", "systems",
+  "technology", "technologies", "tech", "global", "international"
+]);
+
+function normalizedWords(value: string): string[] {
+  return value
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .split(/\s+/)
+    .map((part) => part.trim())
+    .filter((part) => part.length >= 3 && !GENERIC_COMPANY_WORDS.has(part));
+}
+
+export type ApplicationTargetValidation = {
+  ok: boolean;
+  reason: string;
+  matchedCompanyTokens: string[];
+  expectedCompanyTokens: string[];
+  pageTitle: string;
+};
+
+export async function validateApplicationTarget(
+  url: string,
+  expectedCompany: string
+): Promise<ApplicationTargetValidation> {
+  const expectedCompanyTokens = [...new Set(normalizedWords(expectedCompany))];
+  if (!expectedCompanyTokens.length) {
+    return {
+      ok: false,
+      reason: "Expected employer name has no distinctive token that can be validated safely",
+      matchedCompanyTokens: [],
+      expectedCompanyTokens,
+      pageTitle: ""
+    };
+  }
+
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const context = await browser.newContext({
+      viewport: { width: 1440, height: 1100 },
+      locale: "en-US"
+    });
+    const page = await context.newPage();
+    await page.goto(url, {
+      waitUntil: "domcontentloaded",
+      timeout: 30_000
+    });
+    await page.waitForTimeout(700);
+
+    const pageTitle = await page.title().catch(() => "");
+    const body = await page.locator("body").innerText().catch(() => "");
+    const evidence = [
+      page.url(),
+      pageTitle,
+      body.slice(0, 30_000)
+    ].join(" ").toLowerCase();
+
+    const matchedCompanyTokens = expectedCompanyTokens.filter((token) =>
+      evidence.includes(token)
+    );
+
+    return {
+      ok: matchedCompanyTokens.length > 0,
+      reason: matchedCompanyTokens.length > 0
+        ? "Resolved page matches the expected employer"
+        : "Resolved page does not contain a distinctive token from the expected employer name",
+      matchedCompanyTokens,
+      expectedCompanyTokens,
+      pageTitle
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      reason: "Could not validate resolved employer page: " +
+        (error instanceof Error ? error.message : String(error)),
+      matchedCompanyTokens: [],
+      expectedCompanyTokens,
+      pageTitle: ""
+    };
+  } finally {
+    await browser.close();
+  }
+}
+
 const NON_APPLICATION_HOSTS = [
   /(^|\.)facebook\.com$/i,
   /(^|\.)instagram\.com$/i,
