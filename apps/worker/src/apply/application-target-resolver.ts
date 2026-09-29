@@ -131,10 +131,15 @@ export async function validateApplicationTarget(
       pageTitle,
       body.slice(0, 30_000)
     ].join(" ").toLowerCase();
-    const challengePage =
-      /just a moment|verify you are human|checking your browser|cloudflare|cf-chl|attention required/i.test(
-        `${pageTitle} ${body.slice(0, 8_000)}`
+    const challengeTitle =
+      /^(?:just a moment|attention required|verify you are human|checking your browser)/i.test(
+        pageTitle.trim()
       );
+    const challengeBody =
+      /checking your browser before accessing|verify you are human|performing security verification|enable javascript and cookies to continue|cloudflare ray id|cf-chl-/i.test(
+        body.slice(0, 2_500)
+      );
+    const challengePage = challengeTitle || challengeBody;
     const unresolvedAggregator =
       isAggregatorHost(page.url()) && !(await hasApplicationForm(page));
 
