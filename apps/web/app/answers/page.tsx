@@ -65,6 +65,12 @@ export default async function AnswersPage() {
           <div className="status">{answers.length} saved</div>
         </header>
 
+        <nav className="sectionTabs" aria-label="AI and CV sections">
+          <a href="/cvs">CV history</a>
+          <a className="active" href="/answers">Answer vault</a>
+          <a href="/analytics">Analytics</a>
+        </nav>
+
         <div className="notice">
           <b>Verified answers only</b>
           <span>
