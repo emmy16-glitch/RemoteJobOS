@@ -7,7 +7,7 @@ import { loadRegisteredAtsSources } from "./source-registry.js";
 import { recordSourceRun, sourceAvailable } from "./source-health.js";
 import type { JobSource } from "./sources/types.js";
 
-const builtInSources: JobSource[] = [remotiveSource, remoteOkSource, arbeitnowSource, himalayasSource];
+const builtInSources: JobSource[] = [himalayasSource, remotiveSource, remoteOkSource, arbeitnowSource];
 
 async function getSources(): Promise<JobSource[]> {
   const registered = await loadRegisteredAtsSources().catch((error) => {
