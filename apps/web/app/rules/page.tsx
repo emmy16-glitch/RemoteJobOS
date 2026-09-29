@@ -38,6 +38,11 @@ export default async function RulesPage() {
           <div className="status">Auto-except enabled</div>
         </header>
 
+        <nav className="sectionTabs" aria-label="Settings sections">
+          <a href="/profile">Career profile</a>
+          <a className="active" href="/rules">Rules</a>
+        </nav>
+
         <section className="rulesGrid">
           <article className="panel ruleCard">
             <p className="eyebrow">SUBMISSION</p>
