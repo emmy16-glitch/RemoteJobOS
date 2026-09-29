@@ -81,7 +81,6 @@ export default async function ProfilePage({
 
         <nav className="sectionTabs" aria-label="Settings sections">
           <a className="active" href="/profile">Career profile</a>
-          <a href="/answers">Answer vault</a>
           <a href="/rules">Rules</a>
         </nav>
 
