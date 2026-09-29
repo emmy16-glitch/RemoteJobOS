@@ -503,3 +503,37 @@ test("does not fabricate compensation attestations", async () => {
     undefined
   );
 });
+
+
+test("reuses explicitly approved consent variants without bypassing employer no-AI attestations", async () => {
+  const { buildDeterministicFillPlan } = await import("../src/planner.ts");
+
+  const answers = {
+    "please confirm that you have read and agree to canonical s recruitment privacy notice and privacy policy": "Yes",
+    "are you comfortable using your own device": "Yes",
+    "this role requires up to 15 20 travel to asia are you able to commit to this": "Yes",
+    "have you reviewed the compensation details salary range provided in the job description above": "Yes"
+  };
+  const approved = Object.keys(answers);
+
+  const plan = buildDeterministicFillPlan(
+    [
+      { key: "privacy", label: "Please confirm you agree to our Recruitment Privacy Policy", kind: "select" as const, required: true, options: ["Yes", "No"], sensitive: true },
+      { key: "device", label: "Are you willing to use your own computer for work?", kind: "select" as const, required: true, options: ["Yes", "No"] },
+      { key: "travel", label: "This position involves travel. Are you able to commit to the travel requirement?", kind: "select" as const, required: true, options: ["Yes", "No"], sensitive: true },
+      { key: "comp", label: "Have you reviewed the salary and compensation details?", kind: "select" as const, required: true, options: ["Yes", "No"], sensitive: true },
+      { key: "no-ai", label: "During this application process I agree to use only my own words. I understand that the use of AI-generated content will disqualify my application.", kind: "select" as const, required: true, options: ["Yes", "No"], sensitive: true }
+    ],
+    answers,
+    [],
+    approved
+  );
+
+  assert.deepEqual(plan.slice(0, 4).map((entry) => entry.action), [
+    { type: "fill", value: "Yes" },
+    { type: "fill", value: "Yes" },
+    { type: "fill", value: "Yes" },
+    { type: "fill", value: "Yes" }
+  ]);
+  assert.equal(plan[4]?.action.type, "human-review");
+});
