@@ -5,11 +5,13 @@ import {
 } from "@remotejobos/core";
 import type { JobSource } from "./types.js";
 
-type CountryRestriction = {
-  alpha2?: string;
-  name?: string;
-  slug?: string;
-};
+type CountryRestriction =
+  | string
+  | {
+      alpha2?: string;
+      name?: string;
+      slug?: string;
+    };
 
 type HimalayasJob = {
   title: string;
@@ -79,7 +81,11 @@ function remoteScope(restrictions: CountryRestriction[] | undefined): RemoteScop
 function locationText(restrictions: CountryRestriction[] | undefined): string {
   if (!restrictions?.length) return "Worldwide";
   return restrictions
-    .map((restriction) => restriction.name ?? restriction.alpha2 ?? restriction.slug)
+    .map((restriction) =>
+      typeof restriction === "string"
+        ? restriction
+        : restriction.name ?? restriction.alpha2 ?? restriction.slug
+    )
     .filter((value): value is string => Boolean(value))
     .join(", ");
 }
