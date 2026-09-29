@@ -2684,3 +2684,502 @@ html[data-theme="dark"] .sectionTabs a.active {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Application audit + dark-theme consistency */
+.applicationDetailPage {
+  max-width: 1180px;
+}
+
+.applicationDetailPage > .backLink {
+  width: fit-content;
+  margin-bottom: 16px;
+}
+
+.applicationDetailHero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 16px;
+}
+
+.applicationDetailHero h1 {
+  margin: 0;
+  color: var(--text);
+  font-size: clamp(26px, 3vw, 38px);
+  line-height: 1.08;
+  letter-spacing: -.04em;
+}
+
+.applicationDetailHero p:not(.eyebrow) {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
+.detailStatus {
+  min-height: 32px;
+  padding-inline: 11px;
+}
+
+.auditSummary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0,1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.auditSummary > div,
+.evidenceGrid > div {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.auditSummary small,
+.evidenceGrid small,
+.answerAuditValue small,
+.answerAuditSource small {
+  color: var(--muted-2);
+  font-size: 8px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+}
+
+.auditSummary strong {
+  color: var(--text);
+  font-size: 11px;
+}
+
+.detailJumpNav {
+  display: flex;
+  gap: 5px;
+  overflow-x: auto;
+  margin: 0 0 12px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface);
+  scrollbar-width: none;
+}
+
+.detailJumpNav::-webkit-scrollbar { display: none; }
+
+.detailJumpNav a {
+  flex: 0 0 auto;
+  min-height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0 11px;
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.detailJumpNav a:hover {
+  background: var(--surface-tint);
+  color: var(--text);
+}
+
+.auditSection {
+  margin-bottom: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  scroll-margin-top: 76px;
+}
+
+.auditSectionHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 13px;
+}
+
+.auditSectionHead h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 17px;
+  letter-spacing: -.025em;
+}
+
+.auditChip {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--green-soft);
+  color: var(--green);
+  font-size: 8px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.answerAuditList {
+  display: grid;
+  gap: 8px;
+}
+
+.answerAuditRow {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.05fr) minmax(240px, 1.6fr) minmax(150px, .8fr);
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface-soft);
+}
+
+.answerAuditQuestion,
+.answerAuditValue,
+.answerAuditSource {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 4px;
+}
+
+.answerAuditQuestion strong {
+  color: var(--text);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.answerAuditQuestion span,
+.answerAuditSource span,
+.answerAuditSource em {
+  color: var(--muted);
+  font-size: 8px;
+  font-style: normal;
+}
+
+.answerAuditValue p {
+  margin: 0;
+  color: var(--text);
+  font-size: 10px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.answerAuditSource em {
+  color: var(--muted-2);
+}
+
+.auditNotice {
+  margin: 0;
+}
+
+.fallbackAnswers {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.fallbackAnswers h3 {
+  margin: 0;
+  font-size: 12px;
+}
+
+.fallbackAnswers > p {
+  margin: 4px 0 10px;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.fallbackAnswers > div {
+  display: grid;
+  grid-template-columns: minmax(140px,.7fr) minmax(0,1.8fr);
+  gap: 12px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
+  font-size: 9px;
+}
+
+.fallbackAnswers span {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.cvAuditMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.cvAuditMeta span {
+  min-height: 26px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 9px;
+  border-radius: 8px;
+  background: var(--surface-tint);
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.cvStrategy {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.6;
+}
+
+.cvPreviewFrame {
+  width: 100%;
+  height: min(78vh, 900px);
+  min-height: 620px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-soft);
+}
+
+.attemptTimeline {
+  display: grid;
+}
+
+.attemptRow {
+  display: grid;
+  grid-template-columns: 18px minmax(0,1fr);
+  gap: 9px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+
+.attemptRow:first-child { border-top: 0; }
+
+.attemptDot {
+  width: 10px;
+  height: 10px;
+  margin-top: 3px;
+  border-radius: 999px;
+  background: var(--muted-2);
+  box-shadow: 0 0 0 4px var(--surface-tint);
+}
+
+.attemptDot.submitted,
+.attemptDot.verified { background: var(--green); }
+.attemptDot.blocked { background: var(--amber); }
+.attemptDot.failed,
+.attemptDot.unknown { background: var(--rose); }
+
+.attemptRow strong {
+  color: var(--text);
+  font-size: 10px;
+}
+
+.attemptRow p {
+  margin: 3px 0;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.attemptRow small {
+  color: var(--muted-2);
+  font-size: 8px;
+}
+
+.evidenceGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 8px;
+}
+
+.evidenceGrid a,
+.evidenceGrid strong,
+.evidenceGrid span {
+  color: var(--text);
+  font-size: 10px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.evidenceGrid a {
+  color: var(--blue);
+  font-weight: 800;
+}
+
+/* Remove light-theme islands when dark mode is active. */
+html[data-theme="dark"] .status,
+html[data-theme="dark"] .controlButton,
+html[data-theme="dark"] .smallButton,
+html[data-theme="dark"] .outlineButton,
+html[data-theme="dark"] .externalButton,
+html[data-theme="dark"] .primaryLink,
+html[data-theme="dark"] .compactAction,
+html[data-theme="dark"] .backLink,
+html[data-theme="dark"] .panelLink,
+html[data-theme="dark"] .secondaryButton {
+  background: var(--surface);
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+html[data-theme="dark"] .filterBar button,
+html[data-theme="dark"] .primaryButton,
+html[data-theme="dark"] .loginForm button {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+}
+
+html[data-theme="dark"] .nextAction,
+html[data-theme="dark"] .jobMeta span,
+html[data-theme="dark"] .cvMeta span,
+html[data-theme="dark"] .runMeta span,
+html[data-theme="dark"] .checkItem,
+html[data-theme="dark"] .factEditor,
+html[data-theme="dark"] .roleScope,
+html[data-theme="dark"] .connectionRows,
+html[data-theme="dark"] .policyPanel,
+html[data-theme="dark"] .setupCode code,
+html[data-theme="dark"] .companyCell i,
+html[data-theme="dark"] .companyBadge,
+html[data-theme="dark"] .tableStatus,
+html[data-theme="dark"] .decision,
+html[data-theme="dark"] .statusPill,
+html[data-theme="dark"] .exceptionType {
+  background: var(--surface-tint);
+  border-color: var(--line);
+  color: var(--muted);
+}
+
+html[data-theme="dark"] .tableStatus.applied,
+html[data-theme="dark"] .decision.applied,
+html[data-theme="dark"] .statusPill.applied {
+  background: var(--green-soft);
+  color: #55d98a;
+}
+
+html[data-theme="dark"] .tableStatus.auto-submit-queued,
+html[data-theme="dark"] .decision.auto-submit-queued,
+html[data-theme="dark"] .statusPill.auto-submit-queued {
+  background: var(--blue-soft);
+  color: #8bb0ff;
+}
+
+html[data-theme="dark"] .tableStatus.needs-attention,
+html[data-theme="dark"] .decision.needs-attention,
+html[data-theme="dark"] .statusPill.needs-attention {
+  background: var(--amber-soft);
+  color: #f4b94d;
+}
+
+html[data-theme="dark"] .nextAction {
+  border-color: var(--line);
+}
+
+html[data-theme="dark"] .nextAction p,
+html[data-theme="dark"] .jobReasons,
+html[data-theme="dark"] .cleanTable td,
+html[data-theme="dark"] .exceptionDetail,
+html[data-theme="dark"] .profileStatus,
+html[data-theme="dark"] .statusList > div,
+html[data-theme="dark"] .analyticsRow,
+html[data-theme="dark"] .sourceRow,
+html[data-theme="dark"] .policyRow,
+html[data-theme="dark"] .connectionRows > div,
+html[data-theme="dark"] .formGrid label,
+html[data-theme="dark"] .notificationForm label,
+html[data-theme="dark"] .exceptionForm label {
+  color: var(--muted);
+}
+
+html[data-theme="dark"] .overviewMetricTop,
+html[data-theme="dark"] .cleanTable td b,
+html[data-theme="dark"] .statusList b,
+html[data-theme="dark"] .analyticsRow b,
+html[data-theme="dark"] .sourceRow b {
+  color: var(--text);
+}
+
+html[data-theme="dark"] .cleanTable th,
+html[data-theme="dark"] .cleanTable td,
+html[data-theme="dark"] .mailRow,
+html[data-theme="dark"] .activityFeedRow,
+html[data-theme="dark"] .statusList > div,
+html[data-theme="dark"] .analyticsRow,
+html[data-theme="dark"] .sourceRow,
+html[data-theme="dark"] .policyRow,
+html[data-theme="dark"] .connectionRows > div {
+  border-color: var(--line);
+}
+
+html[data-theme="dark"] .score {
+  color: #55d98a;
+}
+
+@media (max-width: 960px) {
+  .mobileNav {
+    grid-template-columns: repeat(6, minmax(0,1fr));
+  }
+
+  .mobileNav a {
+    padding-inline: 2px;
+    font-size: 7px;
+  }
+
+  .mobileNavIcon {
+    font-size: 15px;
+  }
+
+  .auditSummary {
+    grid-template-columns: repeat(2, minmax(0,1fr));
+  }
+
+  .answerAuditRow {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .applicationDetailHero {
+    display: grid;
+  }
+
+  .auditSection {
+    padding: 13px;
+  }
+
+  .auditSectionHead {
+    display: grid;
+  }
+
+  .auditSummary {
+    gap: 7px;
+  }
+
+  .auditSummary > div {
+    padding: 10px;
+  }
+
+  .evidenceGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .fallbackAnswers > div {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .cvPreviewFrame {
+    min-height: 520px;
+    height: 68vh;
+  }
+}
