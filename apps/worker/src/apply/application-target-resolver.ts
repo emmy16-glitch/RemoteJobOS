@@ -195,7 +195,7 @@ async function resolveWithStagehand(initialUrl: string): Promise<string | null> 
       browser,
       cache: true,
       model: {
-        modelName: process.env.STAGEHAND_MODEL!,
+        modelName: process.env.STAGEHAND_MODEL! as never,
         apiKey: process.env.STAGEHAND_MODEL_API_KEY!
       }
     });
@@ -213,14 +213,14 @@ async function resolveWithStagehand(initialUrl: string): Promise<string | null> 
         "and never click a final Submit application button. Stop as soon as the application form is visible.";
 
       await stagehand.act(instruction);
-      let finalUrl = page.url();
+      let finalUrl = await page.url();
 
       if (finalUrl === initialUrl || isAggregatorHost(finalUrl)) {
         await stagehand.act(
           "If this is still only a job listing page, continue to the employer's actual application form. " +
           "Do not fill fields and do not submit anything."
         );
-        finalUrl = page.url();
+        finalUrl = await page.url();
       }
 
       return httpUrl(finalUrl)?.toString() ?? null;
