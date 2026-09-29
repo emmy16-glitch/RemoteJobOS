@@ -141,7 +141,9 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
       page.getByRole("link", { name: /apply( for this job| now)?/i }).first(),
       page.getByRole("button", { name: /apply( for this job| now)?/i }).first(),
       page.getByRole("link", { name: /continue to application/i }).first(),
-      page.getByRole("button", { name: /continue to application/i }).first()
+      page.getByRole("button", { name: /continue to application/i }).first(),
+      page.getByRole("link", { name: /application form|apply here|creative network|join our creative network/i }).first(),
+      page.getByRole("button", { name: /application form|apply here|creative network|join our creative network/i }).first()
     ];
 
     for (const candidate of candidates) {
