@@ -166,6 +166,26 @@ export async function runApplicationPipeline(
 
     if (!preparation.ready) {
       const reason = preparation.reason ?? "Submission preflight is not ready";
+      const captchaBlocked = /captcha|anti-bot|verify you are human|security verification/i.test(reason);
+
+      if (captchaBlocked) {
+        await store.recordStage(attemptId, "submit-preflight", "blocked", {
+          retryable: false,
+          sideEffectStarted: false,
+          reason
+        });
+        return {
+          status: "blocked",
+          attemptId,
+          reason,
+          issues: [{
+            fieldKey: "captcha",
+            code: "unverified",
+            message: reason
+          }]
+        };
+      }
+
       await store.recordStage(attemptId, "submit-preflight", "failed", {
         retryable: preparation.retryable,
         sideEffectStarted: false,
