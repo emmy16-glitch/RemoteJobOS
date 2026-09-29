@@ -142,23 +142,9 @@ export async function runApplicationPipeline(
       return { status: "dry-run-verified", attemptId };
     }
 
-    reservedSubmitAttempt = context.beforeSubmitAttempt
-      ? await context.beforeSubmitAttempt()
-      : 1;
-
-    if (reservedSubmitAttempt === null) {
-      const reason = "Safe submit retry limit exhausted";
-      await store.recordStage(attemptId, "submit-preflight", "blocked", {
-        reason
-      });
-      return { status: "blocked", attemptId, reason };
-    }
-
     assertToolFamilyAllowed("submit", "browser");
     assertToolFamilyAllowed("submit", "submission");
-    await store.recordStage(attemptId, "submit-preflight", "started", {
-      submitAttempt: reservedSubmitAttempt
-    });
+    await store.recordStage(attemptId, "submit-preflight", "started");
     const preparation = await adapter.prepareSubmit?.(executionContext) ?? {
       ready: true,
       retryable: false
@@ -200,6 +186,22 @@ export async function runApplicationPipeline(
         submitAttempt: reservedSubmitAttempt ?? undefined
       };
     }
+    reservedSubmitAttempt = context.beforeSubmitAttempt
+      ? await context.beforeSubmitAttempt()
+      : 1;
+
+    if (reservedSubmitAttempt === null) {
+      const reason = "Safe submit retry limit exhausted";
+      await store.recordStage(attemptId, "submit-preflight", "blocked", {
+        reason
+      });
+      return { status: "blocked", attemptId, reason };
+    }
+
+    await store.recordStage(attemptId, "submit-preflight", "verified", {
+      submitAttempt: reservedSubmitAttempt
+    });
+
 
     assertToolFamilyAllowed("fence", "policy");
     await store.recordStage(attemptId, "fence", "started");
