@@ -115,17 +115,5 @@ export function salaryExpectationAnswers(job: SalaryExpectationJob): Record<stri
     "annual compensation expectation": annual
   };
 
-  const compensationEvidence = [job.salaryText, job.description]
-    .filter(Boolean)
-    .join(" ");
-  if (
-    /salary|compensation/i.test(compensationEvidence) &&
-    /(?:\$|\bUSD\b|salary range|compensation range)/i.test(compensationEvidence)
-  ) {
-    answers["have you reviewed the compensation details salary range provided in the job description above"] = "Yes";
-    answers["have you reviewed the compensation details"] = "Yes";
-    answers["have you reviewed the salary range"] = "Yes";
-  }
-
   return answers;
 }
