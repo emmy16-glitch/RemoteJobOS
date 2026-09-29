@@ -73,7 +73,8 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
 
   constructor(
     public readonly name: string,
-    private readonly urlPatterns: RegExp[]
+    private readonly urlPatterns: RegExp[],
+    private readonly preferApplyLink = false
   ) {}
 
   canHandle(url: string): boolean {
@@ -84,6 +85,39 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
     return page.locator(
       'input:not([type="hidden"]):not([type="submit"]):not([type="button"]), textarea, select'
     );
+  }
+
+  private async followApplyLink(page: Page): Promise<Page> {
+    const candidates = [
+      page.getByRole("link", { name: /apply( for this job| now)?/i }).first(),
+      page.getByRole("button", { name: /apply( for this job| now)?/i }).first(),
+      page.getByRole("link", { name: /continue to application/i }).first(),
+      page.getByRole("button", { name: /continue to application/i }).first()
+    ];
+
+    for (const candidate of candidates) {
+      if (!(await candidate.count()) || !(await candidate.isVisible().catch(() => false))) {
+        continue;
+      }
+
+      const context = page.context();
+      const popupPromise = context.waitForEvent("page", { timeout: 3_000 }).catch(() => undefined);
+      await candidate.click();
+      const popup = await popupPromise;
+
+      if (popup) {
+        this.page = popup;
+        await popup.waitForLoadState("domcontentloaded", { timeout: 15_000 }).catch(() => undefined);
+        await popup.waitForTimeout(750);
+        return popup;
+      }
+
+      await page.waitForLoadState("domcontentloaded", { timeout: 15_000 }).catch(() => undefined);
+      await page.waitForTimeout(750);
+      return page;
+    }
+
+    return page;
   }
 
   private async ensurePage(context: ApplicationContext): Promise<Page> {
@@ -101,23 +135,13 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
     });
     await this.page.waitForTimeout(500);
 
-    if (await this.controls(this.page).count() < 2) {
-      const candidates = [
-        this.page.getByRole("link", { name: /apply( for this job| now)?/i }).first(),
-        this.page.getByRole("button", { name: /apply( for this job| now)?/i }).first()
-      ];
-
-      for (const candidate of candidates) {
-        if (await candidate.count() && await candidate.isVisible().catch(() => false)) {
-          await candidate.click();
-          await this.page.waitForLoadState("domcontentloaded").catch(() => undefined);
-          await this.page.waitForTimeout(750);
-          break;
-        }
-      }
+    let page = this.page;
+    if (this.preferApplyLink || await this.controls(page).count() < 2) {
+      page = await this.followApplyLink(page);
+      this.page = page;
     }
 
-    return this.page;
+    return page;
   }
 
   private resolve(page: Page, field: ApplicationField): Locator {
@@ -177,6 +201,17 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
         };
       })
     );
+
+    const hasApplicationForm =
+      (await page.locator("form").count()) > 0 ||
+      (await page.locator('input[type="file"]').count()) > 0 ||
+      (await page.getByRole("button", { name: /apply|submit|continue|next/i }).count()) > 0;
+
+    if (!raw.length || !hasApplicationForm) {
+      throw new Error(
+        "No usable application form was found after following the job's Apply link"
+      );
+    }
 
     const fields: ApplicationField[] = [];
     const radioGroups = new Map<string, RawField[]>();
