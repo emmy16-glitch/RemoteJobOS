@@ -1,4 +1,5 @@
 import type { ConfirmationResult, ApplicationStore } from "./types.js";
+import { salaryExpectationAnswers } from "@remotejobos/core";
 import { config, hasSupabase } from "../config.js";
 
 type ProfileFact = {
@@ -19,6 +20,16 @@ type CareerProfilePayload = {
   verifiedAnswers?: Record<string, string>;
   assets?: Record<string, string>;
   facts?: ProfileFact[];
+  skills?: string[];
+};
+
+type ApplicationJobContext = {
+  source: string | null;
+  title: string | null;
+  company: string | null;
+  description: string | null;
+  salaryText: string | null;
+  roleFamily: string | null;
 };
 
 function compactText(value: string | null | undefined): string {
@@ -42,9 +53,15 @@ function verifiedProfileAnswer(
   return undefined;
 }
 
+function salaryAutomationApproved(profile: CareerProfilePayload): boolean {
+  return /^(?:yes|true|approved|enabled)$/i.test(
+    verifiedProfileAnswer(profile, "salary automation approved") ?? ""
+  );
+}
+
 function deriveSafeApplicationAnswers(
   profile: CareerProfilePayload,
-  job: { source: string | null; title: string | null; company: string | null; description: string | null }
+  job: ApplicationJobContext
 ): Record<string, string> {
   const facts = profile.facts ?? [];
   const agentFacts = facts.filter((fact) => {
@@ -140,7 +157,8 @@ function deriveSafeApplicationAnswers(
     (usesSupabase && /supabase/i.test(company)
       ? " I have also used Supabase and PostgreSQL in practical project work, so the product and engineering environment is directly relevant to tools I already work with."
       : "") +
-    " I am especially motivated by roles where I can build reliable systems, improve developer or user workflows, and keep learning through real production problems.";
+    " I am especially motivated by roles where I can build reliable systems, improve developer or user workflows, and solve real production problems.";
+
 
   answers[`why are you interested in joining the ${company.toLowerCase()} team`] = interestAnswer;
   answers[`why are you interested in joining ${company.toLowerCase()}`] = interestAnswer;
@@ -206,6 +224,55 @@ function deriveSafeApplicationAnswers(
       "My work has focused on practical application data, integration, deployment, troubleshooting, and reliability rather than claiming database-scale experience I have not verified.";
   }
 
+  const technicalEvidence = facts.map((fact) =>
+    [fact.title, fact.body, ...(fact.highlights ?? []), ...(fact.technologies ?? []), ...(fact.keywords ?? [])]
+      .join(" ")
+      .toLowerCase()
+  );
+  const profileSkills = (profile.skills ?? []).join(" ").toLowerCase();
+  const hasKubernetes = technicalEvidence.some((text) => text.includes("kubernetes")) || profileSkills.includes("kubernetes");
+  const hasDocker = technicalEvidence.some((text) => text.includes("docker")) || profileSkills.includes("docker");
+  const hasCicd = technicalEvidence.some((text) => /ci\/cd|github actions|deployment automation/.test(text)) || /ci\/cd|github actions/.test(profileSkills);
+
+  if (hasKubernetes) {
+    const kubernetesAnswer =
+      "I have hands-on Kubernetes experience across CI/CD pipelines, containerized deployment, and production workflows. " +
+      "I use it alongside Docker, GitHub Actions, Linux, health checks, deployment automation, and cloud-hosted services, with practical work around building and publishing container images, deployment flow, troubleshooting, and reliability.";
+    answers["kubernetes experience"] = kubernetesAnswer;
+    answers["describe your kubernetes experience"] = kubernetesAnswer;
+    answers["experience with kubernetes"] = kubernetesAnswer;
+    answers["tell us about your kubernetes experience"] = kubernetesAnswer;
+  }
+
+  if (hasDocker) {
+    const dockerAnswer =
+      "I have hands-on Docker experience containerizing services, building runtime images, working with networking and service dependencies, and using Docker inside CI/CD workflows. " +
+      "My projects include GitHub Actions pipelines that build, tag, and publish images, plus container-based runtime and deployment architecture.";
+    answers["docker experience"] = dockerAnswer;
+    answers["describe your docker experience"] = dockerAnswer;
+    answers["experience with docker"] = dockerAnswer;
+  }
+
+  if (hasCicd) {
+    const cicdAnswer =
+      "I have hands-on CI/CD experience using GitHub Actions for automated tests, type and build validation, browser smoke tests, Docker image builds, commit-SHA and latest tagging, container-registry publishing, and deployment-oriented workflows. " +
+      "I also work with health checks, release verification, and production troubleshooting so pipeline success is backed by runtime evidence.";
+    answers["ci cd experience"] = cicdAnswer;
+    answers["describe your ci cd experience"] = cicdAnswer;
+    answers["continuous integration and deployment experience"] = cicdAnswer;
+  }
+
+  const productionAnswer =
+    "I have hands-on production experience across deployed web applications, cloud-hosted services, real-time media systems, CI/CD, health and readiness checks, containerized infrastructure, automated testing, deployment verification, and production troubleshooting. " +
+    "My work includes Render and other cloud deployments, realtime WebRTC/LiveKit systems, backend runtime dependencies, recovery paths, and reliability-focused operational checks.";
+  answers["production experience"] = productionAnswer;
+  answers["describe your production experience"] = productionAnswer;
+  answers["production systems experience"] = productionAnswer;
+
+  if (salaryAutomationApproved(profile)) {
+    Object.assign(answers, salaryExpectationAnswers(job));
+  }
+
   const remoteAnswer =
     "I have worked across software development, cybersecurity, DevOps, QA automation, deployment, and technical product work using GitHub-based workflows, automated tests, CI/CD, issue-based collaboration, logs, and written technical documentation. " +
     "The practices that work best for me are clear task context, small reviewable changes, reproducible steps, frequent status updates, and automated checks that give the team shared evidence. " +
@@ -260,7 +327,7 @@ async function applicationContext(applicationId: string): Promise<{
   answers: Record<string, string>;
   profile: CareerProfilePayload;
   source: string | null;
-  job: { source: string | null; title: string | null; company: string | null; description: string | null };
+  job: ApplicationJobContext;
 }> {
   const apps = await request<Array<{
     profile_id: string | null;
@@ -273,8 +340,8 @@ async function applicationContext(applicationId: string): Promise<{
   const profileId = app?.profile_id ?? null;
 
   const jobs = app?.job_id
-    ? await request<Array<{ source: string; title: string; company: string; description: string }>>(
-        `jobs?select=source,title,company,description&id=eq.${encodeURIComponent(app.job_id)}&limit=1`
+    ? await request<Array<{ source: string; title: string; company: string; description: string; salary_text: string | null; role_family: string | null }>>(
+        `jobs?select=source,title,company,description,salary_text,role_family&id=eq.${encodeURIComponent(app.job_id)}&limit=1`
       )
     : [];
   const source = jobs[0]?.source ?? null;
@@ -282,7 +349,9 @@ async function applicationContext(applicationId: string): Promise<{
     source,
     title: jobs[0]?.title ?? null,
     company: jobs[0]?.company ?? null,
-    description: jobs[0]?.description ?? null
+    description: jobs[0]?.description ?? null,
+    salaryText: jobs[0]?.salary_text ?? null,
+    roleFamily: jobs[0]?.role_family ?? null
   };
 
   if (!profileId) {
@@ -342,8 +411,13 @@ export class SupabaseApplicationStore implements ApplicationStore {
         )
       : [];
 
+    const salaryKeys = salaryAutomationApproved(context.profile)
+      ? Object.keys(salaryExpectationAnswers(context.job))
+      : [];
+
     return [
       ...reusable.map((row) => row.answer_key),
+      ...salaryKeys,
       ...Object.keys(context.answers ?? {})
     ];
   }
