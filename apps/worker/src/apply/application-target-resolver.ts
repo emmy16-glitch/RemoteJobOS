@@ -131,6 +131,12 @@ export async function validateApplicationTarget(
       pageTitle,
       body.slice(0, 30_000)
     ].join(" ").toLowerCase();
+    const challengePage =
+      /just a moment|verify you are human|checking your browser|cloudflare|cf-chl|attention required/i.test(
+        `${pageTitle} ${body.slice(0, 8_000)}`
+      );
+    const unresolvedAggregator =
+      isAggregatorHost(page.url()) && !(await hasApplicationForm(page));
 
     const matchedCompanyTokens = expectedCompanyTokens.filter((token) =>
       evidence.includes(token)
@@ -155,6 +161,8 @@ export async function validateApplicationTarget(
 
     const ok =
       matchedCompanyTokens.length > 0 &&
+      !challengePage &&
+      !unresolvedAggregator &&
       !genericRecruitingDestination &&
       !titleMissingFromGenericLanding;
 
@@ -162,11 +170,15 @@ export async function validateApplicationTarget(
       ok,
       reason: ok
         ? "Resolved page matches the expected employer and job context"
-        : genericRecruitingDestination
-          ? "Resolved page is a generic talent-community/general-interest form, not the exact job application"
-          : titleMissingFromGenericLanding
-            ? "Resolved page is only a generic careers landing page and does not identify the expected job"
-            : "Resolved page does not contain a distinctive token from the expected employer name",
+        : challengePage
+          ? "Resolved page is an anti-bot challenge, not an application form"
+          : unresolvedAggregator
+            ? "Resolved page is still an aggregator listing and no application form is available"
+            : genericRecruitingDestination
+              ? "Resolved page is a generic talent-community/general-interest form, not the exact job application"
+              : titleMissingFromGenericLanding
+                ? "Resolved page is only a generic careers landing page and does not identify the expected job"
+                : "Resolved page does not contain a distinctive token from the expected employer name",
       matchedCompanyTokens,
       expectedCompanyTokens,
       pageTitle
