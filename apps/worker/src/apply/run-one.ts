@@ -287,7 +287,18 @@ export async function runOneApplication(
         ? "Dry-run passed: form filled and DOM values verified; ready for policy-authorized submission"
         : outcome.reason;
 
-    await patchApplication(applicationId, "ready-for-review", nextAction);
+    const safeRetryableFailure =
+      outcome.status === "failed" &&
+      outcome.retryable &&
+      !outcome.sideEffectStarted;
+
+    await patchApplication(
+      applicationId,
+      safeRetryableFailure ? "cv-prepared" : "ready-for-review",
+      safeRetryableFailure
+        ? `Retryable automation failure: ${nextAction}`
+        : nextAction
+    );
   }
 
   await recordEvent(
