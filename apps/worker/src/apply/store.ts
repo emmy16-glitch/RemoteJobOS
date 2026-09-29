@@ -91,6 +91,30 @@ function deriveSafeApplicationAnswers(
     }
   }
 
+  const country = verifiedProfileAnswer(profile, "country", "country of residence");
+  const city = verifiedProfileAnswer(profile, "city");
+  const rawPhone = verifiedProfileAnswer(profile, "phone", "phone number", "mobile");
+  if (rawPhone) {
+    const compactPhone = rawPhone.replace(/[\s()-]+/g, "");
+    const internationalPhone =
+      /^(?:nigeria|ng)$/i.test(country ?? "") && /^0\d{10}$/.test(compactPhone)
+        ? "+234" + compactPhone.slice(1)
+        : rawPhone;
+    answers.phone = internationalPhone;
+    answers["phone number"] = internationalPhone;
+    answers.mobile = internationalPhone;
+  }
+
+  if (city || country) {
+    const currentLocation = [city, country].filter(Boolean).join(", ");
+    answers["where are you presently located"] = currentLocation;
+    answers["current location"] = currentLocation;
+  }
+  if (/^(?:nigeria|ng)$/i.test(country ?? "")) {
+    answers["what region of the world do you live in"] = "Africa";
+    answers["region of the world"] = "Africa";
+  }
+
   if (built.length) {
     answers["what agents have you built"] =
       "I have built and worked on agent-oriented and automation systems including " +
@@ -299,7 +323,12 @@ export class SupabaseApplicationStore implements ApplicationStore {
     return {
       ...(context.profile.verifiedAnswers ?? {}),
       ...derived,
-      ...(jobSource ? { "job source": jobSource, source: jobSource } : {}),
+      ...(jobSource ? {
+        "job source": jobSource,
+        source: jobSource,
+        "how did you hear about this role": jobSource,
+        "how did you hear about this job": jobSource
+      } : {}),
       ...Object.fromEntries(reusable.map((row) => [row.answer_key, row.answer_value])),
       ...(context.answers ?? {})
     };
