@@ -4,6 +4,9 @@ on:
   schedule:
     - cron: "59 * * * *"
   workflow_dispatch:
+  workflow_run:
+    workflows: ["Discover remote jobs"]
+    types: [completed]
 
 permissions:
   contents: read
