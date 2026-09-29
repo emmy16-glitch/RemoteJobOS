@@ -169,6 +169,24 @@ async function applicationAutonomyMode(applicationId: string): Promise<string> {
   return rows[0]?.autonomy_mode ?? "auto-except";
 }
 
+
+async function cancelSubmissionApproval(
+  approvalId: string,
+  reason: string
+): Promise<void> {
+  await request(
+    `agent_approvals?id=eq.${encodeURIComponent(approvalId)}&status=eq.approved`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        status: "cancelled",
+        decision_reason: reason,
+        decided_at: new Date().toISOString()
+      })
+    }
+  ).catch(() => undefined);
+}
+
 async function notifySubmitted(applicationId: string): Promise<void> {
   const job = await jobLabelForApplication(applicationId);
   await queueNotification({
@@ -533,6 +551,10 @@ async function processSubmitTask(task: ClaimedTask, applicationId: string): Prom
       }
 
       if (outcome.status === "needs-review") {
+        await cancelSubmissionApproval(
+          approvalId,
+          "Auto-approval revoked because live submission encountered unresolved fields."
+        );
         await createFieldExceptions({
           applicationId,
           runId: run.id,
@@ -615,6 +637,11 @@ async function processSubmitTask(task: ClaimedTask, applicationId: string): Prom
       ) {
         const reason =
           `Safe submit retry limit reached after ${DEFAULT_SAFE_SUBMIT_RETRIES} attempts. RemoteJobOS needs you to inspect the job before another attempt.`;
+
+        await cancelSubmissionApproval(
+          approvalId,
+          "Auto-approval revoked after safe submit retries were exhausted."
+        );
 
         await createApplicationException({
           applicationId,
