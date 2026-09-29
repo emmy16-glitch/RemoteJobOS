@@ -1,10 +1,62 @@
 import type { ConfirmationResult, ApplicationStore } from "./types.js";
 import { config, hasSupabase } from "../config.js";
 
+type ProfileFact = {
+  id?: string;
+  kind?: string;
+  title?: string;
+  body?: string;
+  url?: string;
+  highlights?: string[];
+  keywords?: string[];
+  technologies?: string[];
+};
+
 type CareerProfilePayload = {
   verifiedAnswers?: Record<string, string>;
   assets?: Record<string, string>;
+  facts?: ProfileFact[];
 };
+
+function compactText(value: string | undefined): string {
+  return (value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function deriveSafeApplicationAnswers(
+  profile: CareerProfilePayload,
+  job: { source: string | null; title: string | null; company: string | null; description: string | null }
+): Record<string, string> {
+  const facts = profile.facts ?? [];
+  const agentFacts = facts.filter((fact) => {
+    const haystack = [
+      fact.title,
+      fact.body,
+      ...(fact.keywords ?? []),
+      ...(fact.technologies ?? [])
+    ].join(" ");
+    return /\bagent\b|ai agent|automation|orlynx|remotejobos|agentdesk|auctorail/i.test(haystack);
+  });
+
+  const built = agentFacts.slice(0, 4).map((fact) => {
+    const title = compactText(fact.title) || "Technical automation project";
+    const detail = compactText(fact.body);
+    return detail ? `${title}: ${detail}` : title;
+  });
+
+  const answers: Record<string, string> = {};
+  if (built.length) {
+    answers["what agents have you built"] =
+      "I have built and worked on agent-oriented and automation systems including " +
+      built.join(" ") +
+      " My focus is on durable workflows, explicit tool boundaries, verification, and safe automation rather than unrestricted agent actions.";
+  }
+
+  const company = compactText(job.company) || "the company";
+  answers[`what agents would you recommend building for ${company.toLowerCase()}`] =
+    `For ${company}, I would prioritize agents around repetitive, measurable workflows: customer/support triage, operational exception handling, content or asset quality checks, and internal engineering/knowledge assistance. I would keep consequential actions behind verification and clear escalation paths so the agents automate routine work while humans handle ambiguous or high-impact cases.`;
+
+  return answers;
+}
 
 function sourceLabel(source: string | null): string | undefined {
   if (!source) return undefined;
@@ -44,6 +96,7 @@ async function applicationContext(applicationId: string): Promise<{
   answers: Record<string, string>;
   profile: CareerProfilePayload;
   source: string | null;
+  job: { source: string | null; title: string | null; company: string | null; description: string | null };
 }> {
   const apps = await request<Array<{
     profile_id: string | null;
@@ -56,14 +109,20 @@ async function applicationContext(applicationId: string): Promise<{
   const profileId = app?.profile_id ?? null;
 
   const jobs = app?.job_id
-    ? await request<Array<{ source: string }>>(
-        `jobs?select=source&id=eq.${encodeURIComponent(app.job_id)}&limit=1`
+    ? await request<Array<{ source: string; title: string; company: string; description: string }>>(
+        `jobs?select=source,title,company,description&id=eq.${encodeURIComponent(app.job_id)}&limit=1`
       )
     : [];
   const source = jobs[0]?.source ?? null;
+  const job = {
+    source,
+    title: jobs[0]?.title ?? null,
+    company: jobs[0]?.company ?? null,
+    description: jobs[0]?.description ?? null
+  };
 
   if (!profileId) {
-    return { profileId: null, answers: app?.answers ?? {}, profile: {}, source };
+    return { profileId: null, answers: app?.answers ?? {}, profile: {}, source, job };
   }
 
   const profiles = await request<Array<{ profile: CareerProfilePayload }>>(
@@ -73,7 +132,8 @@ async function applicationContext(applicationId: string): Promise<{
     profileId,
     answers: app?.answers ?? {},
     profile: profiles[0]?.profile ?? {},
-    source
+    source,
+    job
   };
 }
 
@@ -95,8 +155,10 @@ export class SupabaseApplicationStore implements ApplicationStore {
       : [];
 
     const jobSource = sourceLabel(context.source);
+    const derived = deriveSafeApplicationAnswers(context.profile, context.job);
     return {
       ...(context.profile.verifiedAnswers ?? {}),
+      ...derived,
       ...(jobSource ? { "job source": jobSource, source: jobSource } : {}),
       ...Object.fromEntries(reusable.map((row) => [row.answer_key, row.answer_value])),
       ...(context.answers ?? {})
