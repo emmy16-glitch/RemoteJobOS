@@ -6,6 +6,17 @@ type CareerProfilePayload = {
   assets?: Record<string, string>;
 };
 
+function sourceLabel(source: string | null): string | undefined {
+  if (!source) return undefined;
+  const labels: Record<string, string> = {
+    remoteok: "Remote OK",
+    remotive: "Remotive",
+    arbeitnow: "Arbeitnow",
+    himalayas: "Himalayas"
+  };
+  return labels[source.toLowerCase()] ?? source;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!hasSupabase()) throw new Error("Supabase is required for application persistence");
 
@@ -32,23 +43,37 @@ async function applicationContext(applicationId: string): Promise<{
   profileId: string | null;
   answers: Record<string, string>;
   profile: CareerProfilePayload;
+  source: string | null;
 }> {
   const apps = await request<Array<{
     profile_id: string | null;
+    job_id: string;
     answers: Record<string, string> | null;
   }>>(
-    `applications?select=profile_id,answers&id=eq.${encodeURIComponent(applicationId)}&limit=1`
+    `applications?select=profile_id,job_id,answers&id=eq.${encodeURIComponent(applicationId)}&limit=1`
   );
-  const profileId = apps[0]?.profile_id ?? null;
-  if (!profileId) return { profileId: null, answers: apps[0]?.answers ?? {}, profile: {} };
+  const app = apps[0];
+  const profileId = app?.profile_id ?? null;
+
+  const jobs = app?.job_id
+    ? await request<Array<{ source: string }>>(
+        `jobs?select=source&id=eq.${encodeURIComponent(app.job_id)}&limit=1`
+      )
+    : [];
+  const source = jobs[0]?.source ?? null;
+
+  if (!profileId) {
+    return { profileId: null, answers: app?.answers ?? {}, profile: {}, source };
+  }
 
   const profiles = await request<Array<{ profile: CareerProfilePayload }>>(
     `career_profiles?select=profile&id=eq.${encodeURIComponent(profileId)}&limit=1`
   );
   return {
     profileId,
-    answers: apps[0]?.answers ?? {},
-    profile: profiles[0]?.profile ?? {}
+    answers: app?.answers ?? {},
+    profile: profiles[0]?.profile ?? {},
+    source
   };
 }
 
@@ -69,8 +94,10 @@ export class SupabaseApplicationStore implements ApplicationStore {
         )
       : [];
 
+    const jobSource = sourceLabel(context.source);
     return {
       ...(context.profile.verifiedAnswers ?? {}),
+      ...(jobSource ? { "job source": jobSource, source: jobSource } : {}),
       ...Object.fromEntries(reusable.map((row) => [row.answer_key, row.answer_value])),
       ...(context.answers ?? {})
     };
