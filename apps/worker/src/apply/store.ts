@@ -1,4 +1,5 @@
 import type { ConfirmationResult, ApplicationStore } from "./types.js";
+import type { FillPlanEntry } from "@remotejobos/core";
 import { salaryExpectationAnswers } from "@remotejobos/core";
 import { config, hasSupabase } from "../config.js";
 
@@ -493,6 +494,58 @@ export class SupabaseApplicationStore implements ApplicationStore {
       status,
       report,
       error
+    });
+  }
+
+  async saveFormSnapshot(
+    applicationId: string,
+    attemptId: string,
+    formUrl: string,
+    adapter: string,
+    plan: FillPlanEntry[],
+    phase: "planned" | "verified" | "submitted",
+    verified: boolean,
+    metadata: Record<string, unknown> = {}
+  ): Promise<void> {
+    const apps = await request<Array<{ cv_version_id: string | null }>>(
+      `applications?select=cv_version_id&id=eq.${encodeURIComponent(applicationId)}&limit=1`
+    );
+    const fields = plan.map((entry) => {
+      const action = entry.action;
+      return {
+        key: entry.field.key,
+        label: entry.field.label,
+        kind: entry.field.kind,
+        required: entry.field.required,
+        sensitive: Boolean(entry.field.sensitive),
+        options: entry.field.options ?? [],
+        action: action.type,
+        value: action.type === "fill" ? action.value : null,
+        assetKey: action.type === "upload" ? action.assetKey : null,
+        reason:
+          action.type === "skip" || action.type === "human-review"
+            ? action.reason
+            : null,
+        source: entry.source,
+        confidence: entry.confidence
+      };
+    });
+
+    await request("application_form_snapshots?on_conflict=attempt_id", {
+      method: "POST",
+      headers: { prefer: "resolution=merge-duplicates" },
+      body: JSON.stringify({
+        application_id: applicationId,
+        attempt_id: attemptId,
+        cv_version_id: apps[0]?.cv_version_id ?? null,
+        form_url: formUrl,
+        adapter,
+        phase,
+        fields,
+        metadata,
+        verified,
+        updated_at: new Date().toISOString()
+      })
     });
   }
 
