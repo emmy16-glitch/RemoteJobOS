@@ -36,6 +36,7 @@ export const arbeitnowSource: JobSource = {
           if (host.endsWith("arbeitnow.ch")) countryHint = "Switzerland";
           else if (host.endsWith("arbeitnow.fr")) countryHint = "France";
           else if (host.endsWith("arbeitnow.co.uk")) countryHint = "United Kingdom";
+          else if (host.endsWith("arbeitnow.com")) countryHint = "Germany";
         } catch {
           // Keep the API-provided location if the source URL is malformed.
         }
