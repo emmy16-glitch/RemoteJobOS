@@ -2,7 +2,7 @@ name: Discover remote jobs
 
 on:
   schedule:
-    - cron: "7 * * * *"
+    - cron: "32 * * * *"
   workflow_dispatch:
 
 permissions:
