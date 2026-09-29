@@ -110,6 +110,11 @@ function checkboxGroupKey(raw: RawField): string {
 export class PlaywrightAtsAdapter implements ApplicationAdapter {
   private browser?: Browser;
   private page?: Page;
+  private lastSubmitNetworkEvidence?: {
+    url: string;
+    status: number;
+    method: string;
+  };
 
   constructor(
     public readonly name: string,
@@ -633,6 +638,22 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
       };
     }
 
+    this.lastSubmitNetworkEvidence = undefined;
+    const responsePromise = page.waitForResponse(
+      (response) => {
+        const method = response.request().method().toUpperCase();
+        const url = response.url();
+        const status = response.status();
+        if (!["POST", "PUT", "PATCH"].includes(method)) return false;
+        if (status < 200 || status >= 400) return false;
+        if (/analytics|segment|sentry|telemetry|google-analytics|doubleclick/i.test(url)) {
+          return false;
+        }
+        return /apply|application|candidate|submission|submit|job.?application|join/i.test(url);
+      },
+      { timeout: 8_000 }
+    ).catch(() => undefined);
+
     try {
       await submit.click();
     } catch (error) {
@@ -644,6 +665,15 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
         message:
           "Submit click returned an error after dispatch may have started: " +
           (error instanceof Error ? error.message : String(error))
+      };
+    }
+
+    const submitResponse = await responsePromise;
+    if (submitResponse) {
+      this.lastSubmitNetworkEvidence = {
+        url: submitResponse.url(),
+        status: submitResponse.status(),
+        method: submitResponse.request().method()
       };
     }
 
@@ -663,14 +693,21 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
 
     const url = page.url();
     const body = compact((await page.locator("body").innerText().catch(() => "")).slice(0, 20_000));
-    const confirmed =
-      /thank you for applying|thanks for applying|application (has been )?(received|submitted)|successfully submitted|we received your application/i.test(body) ||
-      /thank-?you|confirmation|application-submitted|submitted/i.test(url);
+    const textConfirmed =
+      /thank you for applying|thanks for applying|application (has been )?(received|submitted)|successfully submitted|we received your application|application sent|your application has been sent|vielen dank(?: für deine| für ihre)? bewerbung|bewerbung (?:wurde )?(?:gesendet|eingegangen|übermittelt)|danke für deine bewerbung|danke für ihre bewerbung|candidature (?:envoyée|reçue)|merci pour votre candidature/i.test(body);
+    const urlConfirmed =
+      /thank-?you|confirmation|application-submitted|submitted|bewerbung-(?:gesendet|erfolgreich)|success/i.test(url);
+    const networkConfirmed = Boolean(this.lastSubmitNetworkEvidence);
+    const confirmed = textConfirmed || urlConfirmed || networkConfirmed;
 
     return {
       confirmed,
       url,
-      evidence: confirmed ? body.slice(0, 500) : "No known confirmation marker found"
+      evidence: networkConfirmed
+        ? `Verified application submission response: ${this.lastSubmitNetworkEvidence!.method} ${this.lastSubmitNetworkEvidence!.status} ${this.lastSubmitNetworkEvidence!.url}`
+        : confirmed
+          ? body.slice(0, 500)
+          : "No known confirmation marker or verified application submission response found"
     };
   }
 
@@ -688,5 +725,6 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
     await this.browser?.close();
     this.page = undefined;
     this.browser = undefined;
+    this.lastSubmitNetworkEvidence = undefined;
   }
 }
