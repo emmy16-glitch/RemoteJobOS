@@ -114,17 +114,17 @@ function explicitRequirementReviewReason(
 
   const languageRequirements: Array<[RegExp, RegExp, string]> = [
     [
-      /(german|deutsch)[^.!?\n]{0,80}(c1|c2|fluent|native|sehr gut)|(?:c1|c2)[^.!?\n]{0,40}(german|deutsch)/i,
+      /(german|deutsch)[^.!?\n]{0,80}(c1|c2|fluent|native|very good|sehr gut)|(?:c1|c2|fluent|native|very good|sehr gute?)[^.!?\n]{0,40}(german|deutsch)|sehr gute? deutschkenntnisse/i,
       /(german|deutsch)/i,
       "German proficiency requirement is not verified"
     ],
     [
-      /(french|franz[oö]sisch)[^.!?\n]{0,80}(c1|c2|fluent|native|sehr gut)|(?:c1|c2)[^.!?\n]{0,40}(french|franz[oö]sisch)/i,
+      /(french|franz[oö]sisch)[^.!?\n]{0,80}(c1|c2|fluent|native|very good|sehr gut)|(?:c1|c2|fluent|native|very good|sehr gute?)[^.!?\n]{0,40}(french|franz[oö]sisch)|sehr gute? franz[oö]sischkenntnisse/i,
       /(french|franz[oö]sisch)/i,
       "French proficiency requirement is not verified"
     ],
     [
-      /(italian|italienisch)[^.!?\n]{0,80}(c1|c2|fluent|native|sehr gut)|(?:c1|c2)[^.!?\n]{0,40}(italian|italienisch)/i,
+      /(italian|italienisch)[^.!?\n]{0,80}(c1|c2|fluent|native|very good|sehr gut)|(?:c1|c2|fluent|native|very good|sehr gute?)[^.!?\n]{0,40}(italian|italienisch)|sehr gute? italienischkenntnisse/i,
       /(italian|italienisch)/i,
       "Italian proficiency requirement is not verified"
     ]
@@ -132,6 +132,15 @@ function explicitRequirementReviewReason(
 
   for (const [requirement, proof, reason] of languageRequirements) {
     if (requirement.test(text) && !proof.test(verified)) return reason;
+  }
+
+  const clearanceRequirement =
+    /security clearance|clearance required|sü\s?2|süg|secret clearance|top secret/i;
+  if (
+    clearanceRequirement.test(text) &&
+    !/(security clearance|clearance|sü\s?2|süg)/i.test(verified)
+  ) {
+    return "Security-clearance requirement is not verified";
   }
 
   const passportRequirement =
