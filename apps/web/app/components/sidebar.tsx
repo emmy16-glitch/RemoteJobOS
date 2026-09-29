@@ -1,18 +1,18 @@
 const items = [
-  { label: "Dashboard", href: "/", icon: "⌂" },
+  { label: "Overview", href: "/", icon: "⌂" },
   { label: "Jobs", href: "/jobs", icon: "⌕" },
   { label: "Applications", href: "/applications", icon: "▤" },
-  { label: "Exceptions", href: "/exceptions", icon: "!" },
-  { label: "CVs", href: "/cvs", icon: "▧" },
+  { label: "Responses", href: "/inbox", icon: "✉" },
+  { label: "Exceptions", href: "/exceptions", icon: "⚠" },
+  { label: "CVs", href: "/cvs", icon: "◈" },
   { label: "Answers", href: "/answers", icon: "✓" },
-  { label: "Inbox", href: "/inbox", icon: "✉" },
   { label: "Analytics", href: "/analytics", icon: "▥" },
   { label: "Automation", href: "/agent", icon: "✦" },
   { label: "Settings", href: "/profile", icon: "⚙" }
 ];
 
 type SidebarCounts = Partial<Record<
-  "Jobs" | "Applications" | "Exceptions" | "CVs" | "Inbox",
+  "Jobs" | "Applications" | "Exceptions" | "CVs" | "Responses",
   number
 >>;
 
@@ -26,21 +26,22 @@ export function Sidebar({
   counts?: SidebarCounts;
 }) {
   const normalizedActive =
-    active === "Overview" ? "Dashboard" :
+    active === "Dashboard" ? "Overview" :
+    active === "Inbox" ? "Responses" :
     active === "Agent" ? "Automation" :
     active === "Profile" || active === "Rules" ? "Settings" :
     active;
 
   return (
     <aside className="sidebar">
-      <a className="brand" href="/" aria-label="RemoteJobOS dashboard">
+      <a className="brand" href="/" aria-label="RemoteJobOS overview">
         <div className="brandMark" aria-hidden="true">
           <span className="brandHandle" />
           <span className="brandCase" />
         </div>
-        <div>
+        <div className="brandCopy">
           <b>RemoteJobOS</b>
-          <span>Find. Apply. Get Hired. Automatically.</span>
+          <span>Find. Match. Apply. Get hired.</span>
         </div>
       </a>
 
@@ -56,15 +57,8 @@ export function Sidebar({
               <span className="navIcon" aria-hidden="true">{item.icon}</span>
               <span className="navLabel">{item.label}</span>
               {typeof count === "number" && count > 0 ? (
-                <span
-                  className={
-                    "navBadge " +
-                    (item.label === "Exceptions" || item.label === "Inbox"
-                      ? "alert"
-                      : "")
-                  }
-                >
-                  {count > 99 ? "99+" : count}
+                <span className={"navBadge " + (item.label === "Exceptions" ? "alert" : "")}>
+                  {count > 999 ? "999+" : count}
                 </span>
               ) : null}
             </a>
@@ -76,8 +70,8 @@ export function Sidebar({
         <div className="sidebarStatus">
           <span className={agentHealthy ? "dot" : "dot off"} />
           <div>
-            <b>{agentHealthy ? "Automation running" : "Automation waiting"}</b>
-            <small>Auto-except · cloud workers</small>
+            <b>{agentHealthy ? "Automation active" : "Automation waiting"}</b>
+            <small>5 workers · every 5 minutes</small>
           </div>
         </div>
       </div>
