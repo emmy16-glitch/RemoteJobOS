@@ -425,3 +425,63 @@ test("application planner reuses verified identity aliases across common ATS lab
     { type: "fill", value: "ada@example.com" }
   ]);
 });
+
+
+test("adapts salary expectations by role and advertised USD range", async () => {
+  const { salaryExpectationForJob } = await import("../src/salary.ts");
+
+  assert.equal(
+    salaryExpectationForJob({ title: "Software Engineering Intern", roleFamily: "software" }).monthlyUsd,
+    500
+  );
+  assert.equal(
+    salaryExpectationForJob({ title: "Junior Data Analyst", roleFamily: "data" }).monthlyUsd,
+    1000
+  );
+  assert.equal(
+    salaryExpectationForJob({ title: "Backend Software Engineer", roleFamily: "software" }).monthlyUsd,
+    2000
+  );
+  assert.equal(
+    salaryExpectationForJob({ title: "Senior DevOps Engineer", roleFamily: "devops" }).monthlyUsd,
+    4000
+  );
+  assert.equal(
+    salaryExpectationForJob({ title: "Principal Security Architect", roleFamily: "cybersecurity" }).monthlyUsd,
+    5000
+  );
+  assert.equal(
+    salaryExpectationForJob({
+      title: "Software Engineer",
+      roleFamily: "software",
+      salaryText: "USD $30,000 - $45,000 per year"
+    }).monthlyUsd,
+    2500
+  );
+});
+
+test("salary expectation fields can be reused only when explicitly auto-approved", async () => {
+  const { buildDeterministicFillPlan, salaryExpectationAnswers } = await import("../src/index.ts");
+  const answers = salaryExpectationAnswers({
+    title: "Junior Software Engineer",
+    roleFamily: "software"
+  });
+
+  const field = {
+    key: "salary",
+    label: "Expected annual salary",
+    kind: "text" as const,
+    required: true
+  };
+
+  const blocked = buildDeterministicFillPlan([field], answers);
+  assert.equal(blocked[0]?.action.type, "human-review");
+
+  const allowed = buildDeterministicFillPlan(
+    [field],
+    answers,
+    [],
+    Object.keys(answers)
+  );
+  assert.deepEqual(allowed[0]?.action, { type: "fill", value: "12000" });
+});
