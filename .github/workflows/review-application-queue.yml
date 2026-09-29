@@ -19,7 +19,9 @@ on:
       - ".github/workflows/review-application-queue.yml"
       - "apps/worker/src/apply/**"
       - "apps/worker/src/application-queue.ts"
+      - "apps/worker/src/agent-harness.ts"
       - "apps/worker/src/prepare-cvs.ts"
+      - "apps/worker/src/sources/remotive.ts"
       - "packages/core/src/planner.ts"
       - "packages/core/src/scoring.ts"
 
