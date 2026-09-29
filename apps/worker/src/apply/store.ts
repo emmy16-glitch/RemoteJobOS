@@ -530,7 +530,10 @@ export class SupabaseApplicationStore implements ApplicationStore {
         status: "applied",
         submitted_at: new Date().toISOString(),
         confirmation_verified_at: confirmation.confirmed ? new Date().toISOString() : null,
-        confirmation_url: confirmation.url ?? null
+        confirmation_url: confirmation.url ?? null,
+        next_action: confirmation.confirmed
+          ? "Application submitted and confirmation verified."
+          : "Application submitted; confirmation is still being reconciled."
       })
     });
   }
