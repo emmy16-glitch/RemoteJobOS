@@ -121,8 +121,6 @@ export default async function ApplicationsPage({
             <option value="auto-submit-queued">Auto-submit queued</option>
             <option value="needs-attention">Needs attention</option>
             <option value="ready-for-review">Manual review</option>
-            <option value="auto-submit-queued">Auto-submit queued</option>
-            <option value="needs-attention">Needs attention</option>
             <option value="applied">Applied</option>
             <option value="response">Response</option>
             <option value="assessment">Assessment</option>
@@ -183,6 +181,9 @@ export default async function ApplicationsPage({
                       Resolve blocker
                     </a>
                   ) : null}
+                  <a className="primaryLink compactLink" href={`/applications/${application.id}`}>
+                    View application
+                  </a>
                   <a
                     className="externalButton"
                     href={job.apply_url}
