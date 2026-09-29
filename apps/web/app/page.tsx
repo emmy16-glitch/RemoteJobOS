@@ -120,7 +120,6 @@ export default async function Home() {
           Jobs: data.strongMatches,
           Applications: data.applications,
           Exceptions: data.needsAttention,
-          CVs: data.cvCount,
           Responses: data.newResponses
         }}
       />
