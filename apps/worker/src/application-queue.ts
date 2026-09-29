@@ -968,10 +968,10 @@ async function syncProfileApplications(profile: ProfileRow): Promise<{
   let created: ApplicationRow[] = [];
   if (rows.length) {
     created = await request<ApplicationRow[]>(
-      "applications?select=id,job_id,profile_id,cv_version_id,status",
+      "applications?on_conflict=job_id,profile_id&select=id,job_id,profile_id,cv_version_id,status",
       {
         method: "POST",
-        headers: { prefer: "return=representation" },
+        headers: { prefer: "resolution=ignore-duplicates,return=representation" },
         body: JSON.stringify(rows)
       }
     );
