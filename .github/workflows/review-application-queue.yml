@@ -10,12 +10,52 @@ on:
         required: false
         default: "10"
         type: string
+  workflow_run:
+    workflows: ["Match remote jobs"]
+    types: [completed]
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/review-application-queue.yml"
+      - "apps/worker/src/apply/**"
+      - "apps/worker/src/application-queue.ts"
+      - "apps/worker/src/prepare-cvs.ts"
+      - "packages/core/src/planner.ts"
 
 permissions:
   contents: read
 
+concurrency:
+  group: remotejobos-review-queue
+  cancel-in-progress: false
+
 jobs:
+  prepare:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      ENRICHMENT_PROVIDER: none
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Verify required cloud secrets
+        shell: bash
+        run: |
+          test -n "$SUPABASE_URL"
+          test -n "$SUPABASE_SERVICE_ROLE_KEY"
+      - name: Prepare CV plans for newest strong matches
+        run: npm run worker:prepare-cvs
+      - name: Create or refresh application rows and queue review tasks
+        run: npm run worker:sync-applications
+
   review:
+    needs: prepare:
     strategy:
       fail-fast: false
       max-parallel: 5
