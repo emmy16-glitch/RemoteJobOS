@@ -172,8 +172,8 @@ function geographicEligibility(
   if (job.remoteScope === "unknown") {
     return {
       allowed: true,
-      forceReview: false,
-      reason: "Remote geography not explicitly restricted"
+      forceReview: true,
+      reason: "Remote geography is not explicit enough for unattended auto-apply"
     };
   }
 
