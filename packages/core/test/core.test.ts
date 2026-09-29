@@ -403,3 +403,25 @@ test("auto-except still blocks unknown required fields without verified answers"
 
   assert.equal(plan[0]?.action.type, "human-review");
 });
+
+test("application planner reuses verified identity aliases across common ATS labels", async () => {
+  const { buildDeterministicFillPlan } = await import("../src/planner.ts");
+  const plan = buildDeterministicFillPlan(
+    [
+      { key: "given", label: "Given Name", kind: "text" as const, required: true },
+      { key: "family", label: "Family Name", kind: "text" as const, required: true },
+      { key: "mail", label: "E-mail", kind: "email" as const, required: true }
+    ],
+    {
+      "first name": "Ada",
+      "last name": "Lovelace",
+      email: "ada@example.com"
+    }
+  );
+
+  assert.deepEqual(plan.map((entry) => entry.action), [
+    { type: "fill", value: "Ada" },
+    { type: "fill", value: "Lovelace" },
+    { type: "fill", value: "ada@example.com" }
+  ]);
+});
