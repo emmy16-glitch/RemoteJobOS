@@ -510,17 +510,7 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
     // challenge is active. Do not block merely because the passive badge/widget
     // exists; block only when an interactive challenge or verification prompt
     // is actually being presented to the applicant.
-    const challengeFrame = page.locator(
-      'iframe[title*="challenge" i]:visible, iframe[src*="hcaptcha.com/captcha"]:visible, iframe[src*="challenges.cloudflare.com"]:visible'
-    );
-    const challengeText = await page.locator("body").innerText().catch(() => "");
-    const visibleChallenge =
-      (await challengeFrame.count()) > 0 ||
-      /verify you are human|complete (?:the )?captcha|security verification|checking your browser|please complete the security check/i.test(
-        challengeText.slice(0, 5_000)
-      );
-
-    if (visibleChallenge) {
+    if (await this.hasVisibleInteractiveChallenge(page)) {
       issues.push({
         fieldKey: "captcha",
         code: "unverified",
@@ -619,6 +609,19 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
     };
   }
 
+  private async hasVisibleInteractiveChallenge(page: Page): Promise<boolean> {
+    const challengeFrame = page.locator(
+      'iframe[title*="challenge" i]:visible, iframe[src*="hcaptcha.com/captcha"]:visible, iframe[src*="challenges.cloudflare.com"]:visible'
+    );
+    const challengeText = await page.locator("body").innerText().catch(() => "");
+    return (
+      (await challengeFrame.count()) > 0 ||
+      /verify you are human|complete (?:the )?captcha|security verification|checking your browser|please complete the security check/i.test(
+        challengeText.slice(0, 5_000)
+      )
+    );
+  }
+
   private async findSubmitControl(page: Page): Promise<Locator | undefined> {
     const conventional = page.locator(
       'button[type="submit"]:visible:not(:disabled), input[type="submit"]:visible:not(:disabled)'
@@ -672,11 +675,14 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
   async prepareSubmit(context: ApplicationContext) {
     const page = await this.ensurePage(context);
 
-    if (await page.locator('iframe[src*="recaptcha"], iframe[src*="hcaptcha"], [data-sitekey]').count()) {
+    // Passive reCAPTCHA/hCaptcha widgets are common on ATS pages and are not
+    // themselves a challenge. Block only when the applicant is actually being
+    // presented with an interactive anti-bot verification step.
+    if (await this.hasVisibleInteractiveChallenge(page)) {
       return {
         ready: false,
         retryable: false,
-        reason: "CAPTCHA detected; RemoteJobOS will not bypass it"
+        reason: "Interactive CAPTCHA or anti-bot challenge detected; RemoteJobOS will not bypass it"
       };
     }
 
