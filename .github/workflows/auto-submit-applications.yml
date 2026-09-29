@@ -7,6 +7,13 @@ on:
   workflow_run:
     workflows: ["Review application queue"]
     types: [completed]
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/auto-submit-applications.yml"
+      - "apps/worker/src/apply/**"
+      - "apps/worker/src/application-queue.ts"
+      - "apps/worker/src/agent-harness.ts"
   workflow_dispatch:
     inputs:
       max_tasks:
