@@ -92,6 +92,54 @@ function inferredSeniority(title: string): keyof typeof seniorityRank {
   return "entry";
 }
 
+function normalizedVerifiedAnswers(profile: CareerProfile): string {
+  return Object.entries(profile.verifiedAnswers ?? {})
+    .map(([key, value]) => `${key} ${value}`)
+    .join(" ")
+    .toLowerCase();
+}
+
+function explicitRequirementReviewReason(
+  job: NormalizedJob,
+  profile: CareerProfile
+): string | undefined {
+  const text = `${job.title} ${job.description}`.toLowerCase();
+  const verified = normalizedVerifiedAnswers(profile);
+
+  const languageRequirements: Array<[RegExp, RegExp, string]> = [
+    [
+      /(german|deutsch)[^.!?\n]{0,80}(c1|c2|fluent|native|sehr gut)|(?:c1|c2)[^.!?\n]{0,40}(german|deutsch)/i,
+      /(german|deutsch)/i,
+      "German proficiency requirement is not verified"
+    ],
+    [
+      /(french|franz[oö]sisch)[^.!?\n]{0,80}(c1|c2|fluent|native|sehr gut)|(?:c1|c2)[^.!?\n]{0,40}(french|franz[oö]sisch)/i,
+      /(french|franz[oö]sisch)/i,
+      "French proficiency requirement is not verified"
+    ],
+    [
+      /(italian|italienisch)[^.!?\n]{0,80}(c1|c2|fluent|native|sehr gut)|(?:c1|c2)[^.!?\n]{0,40}(italian|italienisch)/i,
+      /(italian|italienisch)/i,
+      "Italian proficiency requirement is not verified"
+    ]
+  ];
+
+  for (const [requirement, proof, reason] of languageRequirements) {
+    if (requirement.test(text) && !proof.test(verified)) return reason;
+  }
+
+  const passportRequirement =
+    /(swiss|schweizer|eu|european union)[^.!?\n]{0,60}(passport|pass\b|citizenship|citizen)|(?:passport|citizenship)[^.!?\n]{0,60}(swiss|schweizer|eu|european union)/i;
+  if (
+    passportRequirement.test(text) &&
+    !/(passport|citizenship|citizen|work authorization|work permit)/i.test(verified)
+  ) {
+    return "Passport/citizenship requirement is not verified";
+  }
+
+  return undefined;
+}
+
 function geographicEligibility(
   job: NormalizedJob,
   profile: CareerProfile
@@ -221,6 +269,10 @@ export function scoreJob(job: NormalizedJob, profile: CareerProfile): JobScore {
 
   const geography = geographicEligibility(job, profile);
   reasons.push(geography.reason);
+  const requirementReviewReason = explicitRequirementReviewReason(job, profile);
+  if (requirementReviewReason) {
+    missingSignals.push(requirementReviewReason);
+  }
 
   if (!geography.allowed) {
     return {
@@ -268,11 +320,13 @@ export function scoreJob(job: NormalizedJob, profile: CareerProfile): JobScore {
     text.includes(item.toLowerCase())
   );
 
-  if (!blocked && !geography.forceReview) {
+  if (!blocked && !geography.forceReview && !requirementReviewReason) {
     breakdown.eligibility = 15;
   } else if (!blocked) {
     breakdown.eligibility = 5;
-    missingSignals.push("Eligibility requires review");
+    if (!missingSignals.includes("Eligibility requires review")) {
+      missingSignals.push("Eligibility requires review");
+    }
   } else {
     reasons.push(`Blocked requirement detected: ${blocked}`);
   }
@@ -281,7 +335,7 @@ export function scoreJob(job: NormalizedJob, profile: CareerProfile): JobScore {
   const decision =
     blocked
       ? "reject"
-      : geography.forceReview || !autoScope.allowed
+      : geography.forceReview || Boolean(requirementReviewReason) || !autoScope.allowed
         ? "review"
         : total < 45
           ? "reject"
