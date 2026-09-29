@@ -20,8 +20,10 @@
     "send-notifications": "npm run build --workspace @remotejobos/core && tsx src/index.ts send-notifications"
   },
   "dependencies": {
+    "@browserbasehq/stagehand": "4.1.0",
     "@remotejobos/core": "*",
-    "playwright": "^1.63.0"
+    "playwright": "^1.63.0",
+    "zod": "~4.4.3"
   },
   "devDependencies": {
     "tsx": "^4.20.0",
