@@ -1,15 +1,18 @@
 name: Auto-submit verified applications
 
 on:
-  # Recovery catch-up only. Normal auto-submit now runs immediately after review.
+  # Five-minute recovery catch-up, plus an immediate pass after review completes.
   schedule:
-    - cron: "12,42 * * * *"
+    - cron: "*/5 * * * *"
+  workflow_run:
+    workflows: ["Review application queue"]
+    types: [completed]
   workflow_dispatch:
     inputs:
       max_tasks:
         description: "Maximum auto-submit tasks for this run"
         required: false
-        default: "10"
+        default: "50"
         type: string
 
 permissions:
@@ -21,13 +24,15 @@ concurrency:
 
 jobs:
   submit:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion != 'cancelled' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       REMOTEJOBOS_ALLOW_SUBMIT: "true"
-      REMOTEJOBOS_MAX_AUTO_SUBMIT_TASKS: ${{ inputs.max_tasks || '10' }}
+      REMOTEJOBOS_MAX_AUTO_SUBMIT_TASKS: ${{ inputs.max_tasks || '50' }}
+      REMOTEJOBOS_HARD_BATCH_CAP: "100"
       ENRICHMENT_PROVIDER: none
     steps:
       - uses: actions/checkout@v4
@@ -43,7 +48,7 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Process policy-authorized submissions
-        run: npm run process-auto-submissions --workspace @remotejobos/worker -- "${{ inputs.max_tasks || '10' }}"
+        run: npm run process-auto-submissions --workspace @remotejobos/worker -- "${{ inputs.max_tasks || '50' }}"
       - name: Upload non-sensitive browser evidence
         if: always()
         uses: actions/upload-artifact@v4
