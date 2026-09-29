@@ -29,6 +29,9 @@ const aliases: Array<{ pattern: RegExp; keys: string[] }> = [
   { pattern: /current company|current employer/i, keys: ["current company", "current employer"] },
   { pattern: /current title|current role|job title/i, keys: ["current title", "current role", "job title"] },
   { pattern: /how did you hear about us|where did you hear about us|how.*find.*us/i, keys: ["job source", "source"] },
+  { pattern: /(?:annual|yearly|per annum|per year).*(?:salary|compensation)|(?:salary|compensation).*(?:annual|yearly|per annum|per year)/i, keys: ["annual salary expectation", "expected annual salary", "desired annual salary", "annual compensation expectation"] },
+  { pattern: /(?:monthly|per month).*(?:salary|compensation)|(?:salary|compensation).*(?:monthly|per month)/i, keys: ["monthly salary expectation", "expected monthly salary", "desired monthly salary", "monthly compensation expectation"] },
+  { pattern: /(?:salary|compensation|pay).*(?:expectation|expected|desired|target)|(?:expected|desired|target).*(?:salary|compensation|pay)/i, keys: ["salary expectation", "salary expectations", "expected salary", "desired salary", "target salary", "compensation expectation", "compensation expectations", "expected compensation", "desired compensation"] },
   { pattern: /years? of experience|total experience/i, keys: ["years of experience", "experience years"] }
 ];
 
