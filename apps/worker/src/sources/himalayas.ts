@@ -107,70 +107,78 @@ export const himalayasSource: JobSource = {
   async fetchJobs(): Promise<NormalizedJob[]> {
     const maxPages = Math.max(
       1,
-      Math.min(10, Number(process.env.HIMALAYAS_MAX_PAGES ?? "5") || 5)
+      Math.min(5, Number(process.env.HIMALAYAS_MAX_PAGES ?? "3") || 3)
     );
-    const limit = 20;
-    const jobs: NormalizedJob[] = [];
+    const jobsByGuid = new Map<string, NormalizedJob>();
 
-    for (let page = 0; page < maxPages; page += 1) {
-      const offset = page * limit;
-      const response = await fetch(
-        `https://himalayas.app/jobs/api?limit=${limit}&offset=${offset}`,
-        {
-          headers: {
-            "user-agent":
-              "RemoteJobOS/0.1 (+https://github.com/emmy16-glitch/RemoteJobOS)"
+    const searches = [
+      { label: "worldwide", params: "worldwide=true&sort=recent" },
+      { label: "nigeria", params: "country=NG&sort=recent" }
+    ];
+
+    for (const search of searches) {
+      for (let page = 1; page <= maxPages; page += 1) {
+        const response = await fetch(
+          `https://himalayas.app/jobs/api/search?${search.params}&page=${page}`,
+          {
+            headers: {
+              "user-agent":
+                "RemoteJobOS/0.1 (+https://github.com/emmy16-glitch/RemoteJobOS)"
+            }
           }
+        );
+
+        if (response.status === 429) {
+          throw new Error(`Himalayas rate limit reached during ${search.label} search`);
         }
-      );
+        if (!response.ok) {
+          throw new Error(
+            `Himalayas ${search.label} search returned ${response.status}`
+          );
+        }
 
-      if (response.status === 429) {
-        throw new Error("Himalayas rate limit reached");
+        const payload = (await response.json()) as HimalayasResponse;
+        const pageJobs = payload.jobs ?? [];
+        if (!pageJobs.length) break;
+
+        for (const item of pageJobs) {
+          if (!item.guid || !item.applicationLink || expired(item)) continue;
+
+          const description = stripHtml(item.description ?? item.excerpt ?? "");
+          const seniority = Array.isArray(item.seniority)
+            ? item.seniority
+            : item.seniority
+              ? [item.seniority]
+              : [];
+          const restrictions = item.locationRestrictions ?? [];
+
+          jobsByGuid.set(item.guid, {
+            source: "himalayas",
+            externalId: item.guid,
+            title: item.title,
+            company: item.companyName,
+            description,
+            applyUrl: item.applicationLink,
+            sourceUrl: item.applicationLink,
+            postedAt: isoDate(item.pubDate),
+            salaryText: salaryText(item),
+            locationText: locationText(restrictions),
+            remote: true,
+            remoteScope: remoteScope(restrictions),
+            roleFamily: classifyRoleFamily(item.title, description),
+            tags: [
+              item.employmentType,
+              ...seniority,
+              ...(item.categories ?? []),
+              ...(item.parentCategories ?? []),
+              ...(item.timezoneRestrictions ?? [])
+            ].filter((value): value is string => Boolean(value))
+          });
+        }
+
+        if (pageJobs.length < 20) break;
       }
-      if (!response.ok) {
-        throw new Error(`Himalayas returned ${response.status}`);
-      }
-
-      const payload = (await response.json()) as HimalayasResponse;
-
-      for (const item of payload.jobs ?? []) {
-        if (!item.guid || !item.applicationLink || expired(item)) continue;
-
-        const description = stripHtml(item.description ?? item.excerpt ?? "");
-        const seniority = Array.isArray(item.seniority)
-          ? item.seniority
-          : item.seniority
-            ? [item.seniority]
-            : [];
-        const restrictions = item.locationRestrictions ?? [];
-
-        jobs.push({
-          source: "himalayas",
-          externalId: item.guid,
-          title: item.title,
-          company: item.companyName,
-          description,
-          applyUrl: item.applicationLink,
-          sourceUrl: item.applicationLink,
-          postedAt: isoDate(item.pubDate),
-          salaryText: salaryText(item),
-          locationText: locationText(restrictions),
-          remote: true,
-          remoteScope: remoteScope(restrictions),
-          roleFamily: classifyRoleFamily(item.title, description),
-          tags: [
-            item.employmentType,
-            ...seniority,
-            ...(item.categories ?? []),
-            ...(item.parentCategories ?? []),
-            ...(item.timezoneRestrictions ?? [])
-          ].filter((value): value is string => Boolean(value))
-        });
-      }
-
-      if (offset + limit >= payload.totalCount) break;
     }
 
-    return jobs;
-  }
-};
+    return [...jobsByGuid.values()];
+  }};
