@@ -4,6 +4,12 @@ on:
   schedule:
     - cron: "56 * * * *"
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/discover-jobs.yml"
+      - "apps/worker/src/sources/**"
+      - "apps/worker/src/source-registry.ts"
 
 permissions:
   contents: read
