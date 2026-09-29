@@ -351,6 +351,25 @@ async function processReviewTask(task: ClaimedTask, applicationId: string): Prom
     }
 
     if (outcome.status === "needs-review") {
+      const autonomyMode = await applicationAutonomyMode(applicationId);
+      const hasSensitiveField = outcome.fields.some((field) => field.sensitive);
+
+      if (autonomyMode === "auto-except" && !hasSensitiveField) {
+        await updateApplication(applicationId, {
+          status: "shortlisted",
+          next_action:
+            "Skipped automatically: required routine fields could not be truthfully derived from verified profile data."
+        });
+        await blockHarnessRun(run.id, applicationId, verification.reason, {
+          verification,
+          outcome,
+          autoSkipped: true,
+          userActionRequired: false
+        });
+        await finishTask(task, true);
+        return;
+      }
+
       await createFieldExceptions({
         applicationId,
         runId: run.id,
@@ -373,6 +392,23 @@ async function processReviewTask(task: ClaimedTask, applicationId: string): Prom
         outcome.issues.some((issue) => issue.fieldKey === "captcha")
           ? "captcha"
           : "verification-failed";
+
+      const autonomyMode = await applicationAutonomyMode(applicationId);
+      if (autonomyMode === "auto-except" && issueType !== "captcha") {
+        await updateApplication(applicationId, {
+          status: "shortlisted",
+          next_action:
+            "Skipped automatically after application verification could not be completed safely."
+        });
+        await blockHarnessRun(run.id, applicationId, verification.reason, {
+          verification,
+          outcome,
+          autoSkipped: true,
+          userActionRequired: false
+        });
+        await finishTask(task, true);
+        return;
+      }
 
       await createApplicationException({
         applicationId,
@@ -431,6 +467,22 @@ async function processReviewTask(task: ClaimedTask, applicationId: string): Prom
     }
 
     if (reason.startsWith("No supported application adapter")) {
+      const autonomyMode = await applicationAutonomyMode(applicationId).catch(() => "auto-except");
+      if (autonomyMode === "auto-except") {
+        await updateApplication(applicationId, {
+          status: "shortlisted",
+          next_action: "Skipped automatically: this job site is not safely supported yet."
+        }).catch(() => undefined);
+        await blockHarnessRun(run.id, applicationId, reason, {
+          taskType: task.task_type,
+          autoSkipped: true,
+          userActionRequired: false
+        }).catch(() => undefined);
+        await finishTask(task, true).catch(() => undefined);
+        console.log(`[application-queue] unsupported ATS quarantined automatically: ${applicationId}`);
+        return;
+      }
+
       await createApplicationException({
         applicationId,
         runId: run.id,
@@ -445,7 +497,6 @@ async function processReviewTask(task: ClaimedTask, applicationId: string): Prom
         taskType: task.task_type
       }).catch(() => undefined);
       await finishTask(task, true).catch(() => undefined);
-      console.log(`[application-queue] unsupported ATS moved to exceptions: ${applicationId}`);
       return;
     }
 
@@ -509,6 +560,21 @@ async function processSubmitTask(task: ClaimedTask, applicationId: string): Prom
     return;
   }
   if (run.status === "blocked" && run.recovery_strategy === "manual-reconcile") {
+    const autonomyMode = await applicationAutonomyMode(applicationId);
+    if (autonomyMode === "auto-except") {
+      await cancelSubmissionApproval(
+        approvalId,
+        "Auto-approval revoked because a previous submit side effect is unconfirmed."
+      );
+      await updateApplication(applicationId, {
+        status: "shortlisted",
+        next_action:
+          "Quarantined automatically: a submit side effect may have occurred but could not be confirmed; no automatic re-submit will occur."
+      });
+      await finishTask(task, true);
+      return;
+    }
+
     await createApplicationException({
       applicationId,
       runId: run.id,
@@ -555,6 +621,26 @@ async function processSubmitTask(task: ClaimedTask, applicationId: string): Prom
           approvalId,
           "Auto-approval revoked because live submission encountered unresolved fields."
         );
+
+        const autonomyMode = await applicationAutonomyMode(applicationId);
+        const hasSensitiveField = outcome.fields.some((field) => field.sensitive);
+        if (autonomyMode === "auto-except" && !hasSensitiveField) {
+          await updateApplication(applicationId, {
+            status: "shortlisted",
+            next_action:
+              "Skipped automatically: the live form introduced required routine fields that could not be truthfully derived."
+          });
+          await blockHarnessRun(run.id, applicationId, verification.reason, {
+            verification,
+            outcome,
+            approvalId,
+            autoSkipped: true,
+            userActionRequired: false
+          });
+          await finishTask(task, true);
+          return;
+        }
+
         await createFieldExceptions({
           applicationId,
           runId: run.id,
@@ -578,16 +664,49 @@ async function processSubmitTask(task: ClaimedTask, applicationId: string): Prom
             outcome.sideEffectStarted
           );
 
+        const captcha =
+          outcome.status === "blocked" &&
+          "issues" in outcome &&
+          Array.isArray(outcome.issues) &&
+          outcome.issues.some((issue) => issue.fieldKey === "captcha");
+        const autonomyMode = await applicationAutonomyMode(applicationId);
+
+        if (autonomyMode === "auto-except" && !captcha) {
+          await cancelSubmissionApproval(
+            approvalId,
+            uncertain
+              ? "Auto-approval revoked because submission outcome is unconfirmed."
+              : "Auto-approval revoked after safe verification could not complete."
+          );
+          await updateApplication(applicationId, {
+            status: "shortlisted",
+            next_action: uncertain
+              ? "Quarantined automatically: submit may have occurred but confirmation is unavailable; automatic re-submit is disabled."
+              : "Skipped automatically: live submission could not be verified safely."
+          });
+          await blockHarnessRun(run.id, applicationId, verification.reason, {
+            verification,
+            outcome,
+            approvalId,
+            autoSkipped: true,
+            userActionRequired: false
+          });
+          await finishTask(task, true);
+          return;
+        }
+
         await createApplicationException({
           applicationId,
           runId: run.id,
-          type: uncertain ? "submit-uncertain" : "verification-failed",
+          type: uncertain ? "submit-uncertain" : captcha ? "captcha" : "verification-failed",
           title: uncertain
             ? "Submission outcome is uncertain"
-            : "Submission needs review",
+            : captcha
+              ? "CAPTCHA requires your attention"
+              : "Submission needs review",
           detail: verification.reason,
           payload: { verification, outcome, approvalId },
-          dedupeKey: `${uncertain ? "submit-uncertain" : "submit-blocked"}:${applicationId}:${outcome.attemptId}`
+          dedupeKey: `${uncertain ? "submit-uncertain" : captcha ? "captcha" : "submit-blocked"}:${applicationId}:${outcome.attemptId}`
         });
 
         await blockHarnessRun(run.id, applicationId, verification.reason, {
@@ -642,6 +761,24 @@ async function processSubmitTask(task: ClaimedTask, applicationId: string): Prom
           approvalId,
           "Auto-approval revoked after safe submit retries were exhausted."
         );
+
+        const autonomyMode = await applicationAutonomyMode(applicationId);
+        if (autonomyMode === "auto-except") {
+          await updateApplication(applicationId, {
+            status: "shortlisted",
+            next_action:
+              "Skipped automatically after safe submission retries were exhausted without starting an unverified side effect."
+          });
+          await blockHarnessRun(run.id, applicationId, reason, {
+            verification,
+            outcome,
+            approvalId,
+            autoSkipped: true,
+            userActionRequired: false
+          });
+          await finishTask(task, true);
+          return;
+        }
 
         await createApplicationException({
           applicationId,
