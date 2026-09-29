@@ -147,6 +147,13 @@ export async function validateApplicationTarget(
     const matchedTitleTokens = expectedTitleTokens.filter((token) =>
       evidence.includes(token)
     );
+    const requiredTitleMatches =
+      expectedTitleTokens.length === 0 ? 0 : Math.min(2, expectedTitleTokens.length);
+    const titleMatched =
+      requiredTitleMatches === 0 || matchedTitleTokens.length >= requiredTitleMatches;
+    const companyMatched = matchedCompanyTokens.length > 0;
+    const externalExactTitleFallback =
+      !isAggregatorHost(page.url()) && titleMatched;
     const recruitingText = `${pageTitle} ${body.slice(0, 8_000)}`;
     const genericRecruitingDestination =
       /talent community|join our pack|register your interest|general application|general talent/i.test(
@@ -160,7 +167,7 @@ export async function validateApplicationTarget(
       matchedTitleTokens.length === 0;
 
     const ok =
-      matchedCompanyTokens.length > 0 &&
+      (companyMatched && titleMatched || externalExactTitleFallback) &&
       !challengePage &&
       !unresolvedAggregator &&
       !genericRecruitingDestination &&
@@ -176,9 +183,11 @@ export async function validateApplicationTarget(
             ? "Resolved page is still an aggregator listing and no application form is available"
             : genericRecruitingDestination
               ? "Resolved page is a generic talent-community/general-interest form, not the exact job application"
-              : titleMissingFromGenericLanding
-                ? "Resolved page is only a generic careers landing page and does not identify the expected job"
-                : "Resolved page does not contain a distinctive token from the expected employer name",
+              : !titleMatched
+                ? "Resolved page does not identify the expected job title strongly enough"
+                : titleMissingFromGenericLanding
+                  ? "Resolved page is only a generic careers landing page and does not identify the expected job"
+                  : "Resolved page does not contain enough employer or exact-job evidence",
       matchedCompanyTokens,
       expectedCompanyTokens,
       pageTitle
