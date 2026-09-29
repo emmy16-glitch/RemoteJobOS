@@ -71,10 +71,14 @@ function boolValue(value: string): boolean {
 function semanticFieldLabel(raw: RawField): string | undefined {
   const key = `${raw.name} ${raw.id}`.toLowerCase();
 
+  if (/first.?name|given.?name|forename|vorname/.test(key)) return "First Name";
+  if (/last.?name|family.?name|surname|nachname/.test(key)) return "Last Name";
   if (/candidate\.name|candidate-name/.test(key)) return "Name";
-  if (/candidate\.email|candidate-email/.test(key)) return "Email";
-  if (/candidate\.phone|candidate-phone/.test(key)) return "Phone";
-  if (/candidate\.cv|candidate-cv|resume/.test(key)) return "Resume / CV";
+  if (/candidate\.email|candidate-email|e.?mail/.test(key)) return "Email";
+  if (/candidate\.phone|candidate-phone|telephone|telefon/.test(key)) return "Phone";
+  if (/linkedin/.test(key)) return "LinkedIn";
+  if (/github/.test(key)) return "GitHub";
+  if (/candidate\.cv|candidate-cv|resume|curriculum.?vitae/.test(key)) return "Resume / CV";
   if (/candidate\.photo|candidate-photo/.test(key)) return "Profile photo";
   if (/candidate\.locations|preferred.*location/.test(key)) return "Preferred work location";
 
@@ -221,14 +225,14 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
           .filter(Boolean)
           .map((id) => document.getElementById(id)?.textContent ?? "")
           .join(" ");
-        const directLabel =
-          element.getAttribute("aria-label") ??
-          element.getAttribute("placeholder") ??
-          labelledBy ??
-          (element as HTMLInputElement).labels?.[0]?.textContent ??
-          element.getAttribute("name") ??
-          element.getAttribute("id") ??
-          "";
+        const directLabel = [
+          (element as HTMLInputElement).labels?.[0]?.textContent ?? "",
+          labelledBy,
+          element.getAttribute("aria-label") ?? "",
+          element.getAttribute("placeholder") ?? "",
+          element.getAttribute("name") ?? "",
+          element.getAttribute("id") ?? ""
+        ].find((value) => value.trim()) ?? "";
 
         const nearby =
           element.closest('[data-testid*="question" i], [class*="question" i], [class*="field" i], [class*="form-group" i]');
@@ -533,19 +537,19 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
 
   private async findSubmitControl(page: Page): Promise<Locator | undefined> {
     const conventional = page.locator(
-      'form button[type="submit"]:visible, form input[type="submit"]:visible'
+      'button[type="submit"]:visible:not(:disabled), input[type="submit"]:visible:not(:disabled)'
     );
     const conventionalCount = await conventional.count();
     if (conventionalCount === 1) return conventional.first();
 
     const controls = page.locator(
-      'form button:visible, form input[type="button"]:visible, form input[type="submit"]:visible'
+      'button:visible, input[type="button"]:visible, input[type="submit"]:visible, [role="button"]:visible'
     );
     const matches: number[] = [];
     const count = await controls.count();
     const positive =
-      /submit|submit application|apply|apply now|send application|send|bewerben|jetzt bewerben|bewerbung absenden|absenden|senden|postuler|candidater/i;
-    const negative = /save|draft|back|previous|cancel|next|continue|preview/i;
+      /submit|submit application|complete application|finish application|finalize application|apply|apply now|send application|send|bewerben|jetzt bewerben|bewerbung absenden|absenden|senden|postuler|candidater/i;
+    const negative = /save|draft|back|previous|cancel|next|continue|preview|share|sign in|log in/i;
 
     for (let index = 0; index < count; index += 1) {
       const control = controls.nth(index);
@@ -565,7 +569,7 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
     if (matches.length === 1) return controls.nth(matches[0]!);
 
     const roleMatch = page.getByRole("button", {
-      name: /submit application|submit|apply now|apply|send application|bewerben|jetzt bewerben|bewerbung absenden|absenden|senden|postuler|candidater/i
+      name: /submit application|submit|complete application|finish application|finalize application|apply now|apply|send application|bewerben|jetzt bewerben|bewerbung absenden|absenden|senden|postuler|candidater/i
     });
     const visibleRoleMatches: number[] = [];
     const roleCount = await roleMatch.count();
@@ -639,19 +643,38 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
     }
 
     this.lastSubmitNetworkEvidence = undefined;
+    const submissionOrigin = new URL(page.url()).origin;
     const responsePromise = page.waitForResponse(
       (response) => {
-        const method = response.request().method().toUpperCase();
+        const request = response.request();
+        const method = request.method().toUpperCase();
         const url = response.url();
         const status = response.status();
         if (!["POST", "PUT", "PATCH"].includes(method)) return false;
         if (status < 200 || status >= 400) return false;
-        if (/analytics|segment|sentry|telemetry|google-analytics|doubleclick/i.test(url)) {
+        if (/analytics|segment|sentry|telemetry|google-analytics|doubleclick|clarity|hotjar/i.test(url)) {
           return false;
         }
-        return /apply|application|candidate|submission|submit|job.?application|join/i.test(url);
+
+        const explicitSubmissionEndpoint =
+          /apply|application|candidate|submission|submit|job.?application|join/i.test(url);
+        if (explicitSubmissionEndpoint) return true;
+
+        let sameOrigin = false;
+        try {
+          sameOrigin = new URL(url).origin === submissionOrigin;
+        } catch {
+          sameOrigin = false;
+        }
+
+        const postData = request.postData() ?? "";
+        return (
+          sameOrigin &&
+          postData.length > 20 &&
+          /email|first.?name|last.?name|resume|curriculum|candidate|application|job/i.test(postData)
+        );
       },
-      { timeout: 8_000 }
+      { timeout: 10_000 }
     ).catch(() => undefined);
 
     try {
@@ -694,7 +717,7 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
     const url = page.url();
     const body = compact((await page.locator("body").innerText().catch(() => "")).slice(0, 20_000));
     const textConfirmed =
-      /thank you for applying|thanks for applying|application (has been )?(received|submitted)|successfully submitted|we received your application|application sent|your application has been sent|vielen dank(?: für deine| für ihre)? bewerbung|bewerbung (?:wurde )?(?:gesendet|eingegangen|übermittelt)|danke für deine bewerbung|danke für ihre bewerbung|candidature (?:envoyée|reçue)|merci pour votre candidature/i.test(body);
+      /thank you for applying|thanks for applying|thanks for your application|thanks for your interest|application (has been )?(received|submitted|completed)|application complete|application successful|successfully submitted|we (?:have )?received your application|application sent|your application has been sent|your application is on its way|vielen dank(?: für deine| für ihre)? bewerbung|bewerbung (?:wurde )?(?:gesendet|eingegangen|übermittelt|abgeschickt)|bewerbung erfolgreich|danke für deine bewerbung|danke für ihre bewerbung|candidature (?:envoyée|reçue|enregistrée)|merci pour votre candidature/i.test(body);
     const urlConfirmed =
       /thank-?you|confirmation|application-submitted|submitted|bewerbung-(?:gesendet|erfolgreich)|success/i.test(url);
     const networkConfirmed = Boolean(this.lastSubmitNetworkEvidence);
