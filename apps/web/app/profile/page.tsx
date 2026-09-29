@@ -7,6 +7,7 @@ import { authenticatedUserId } from "../../lib/auth";
 import { publicSupabaseEnv } from "../../lib/supabase/env";
 import { latestProfileForUser } from "../../lib/profile";
 import { ProfileEditor, type EditableProfile } from "./profile-editor";
+import { Sidebar } from "../components/sidebar";
 
 export const dynamic = "force-dynamic";
 
@@ -63,40 +64,47 @@ export default async function ProfilePage({
   };
 
   return (
-    <main className="profileShell">
-      <header className="profileTopbar">
-        <div>
-          <a href="/" className="backLink">← Overview</a>
-          <p className="eyebrow">CAREER PROFILE</p>
-          <h1>Verified source of truth</h1>
-          <p>
-            RemoteJobOS may select and reorder these facts, but it is not
-            allowed to invent experience that is not stored here.
-          </p>
-        </div>
-        <div className="profileStatus">
-          <span className="dot" />
-          Deterministic matching
-        </div>
-      </header>
+    <main className="shell">
+      <Sidebar active="Profile" />
+      <section className="content">
+        <header className="topbar">
+          <div>
+            <p className="eyebrow">SETTINGS · CAREER PROFILE</p>
+            <h1>Verified source of truth</h1>
+            <p>
+              RemoteJobOS may select and reorder these facts, but it never invents
+              experience that is not stored here.
+            </p>
+          </div>
+          <div className="status">Deterministic matching</div>
+        </header>
 
-      {params.saved ? (
-        <div className="notice">
-          <b>Profile saved</b>
-          <span>
-            Future matching and CV planning will use this verified profile.
-          </span>
-        </div>
-      ) : null}
+        <nav className="sectionTabs" aria-label="Settings sections">
+          <a className="active" href="/profile">Career profile</a>
+          <a href="/answers">Answer vault</a>
+          <a href="/rules">Rules</a>
+        </nav>
 
-      {params.error ? (
-        <div className="notice warning">
-          <b>Could not save profile</b>
-          <span>{params.error}</span>
-        </div>
-      ) : null}
+        {params.saved ? (
+          <div className="notice">
+            <b>Profile saved</b>
+            <span>
+              Future matching and CV planning will use this verified profile.
+            </span>
+          </div>
+        ) : null}
 
-      <ProfileEditor initial={initial} />
+        {params.error ? (
+          <div className="notice warning">
+            <b>Could not save profile</b>
+            <span>{params.error}</span>
+          </div>
+        ) : null}
+
+        <div className="settingsContent">
+          <ProfileEditor initial={initial} />
+        </div>
+      </section>
     </main>
   );
 }
