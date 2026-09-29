@@ -209,7 +209,7 @@ function externalTargetScore(
 
   let score = 0;
   if (isKnownApplicationHost(candidateUrl)) score += 100;
-  if (/apply|application|careers?|jobs?|join|work with us/i.test(label)) score += 60;
+  if (/apply|application|careers?|jobs?|join|work with us|company portal|employer portal|apply directly|prefer to apply directly|directly/i.test(label)) score += 60;
   if (/apply|application|careers?|jobs?|join|work/i.test(candidateUrl)) score += 30;
   if (!isAggregatorHost(candidateUrl)) score += 10;
   return score;
