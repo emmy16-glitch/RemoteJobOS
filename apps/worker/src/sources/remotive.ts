@@ -40,6 +40,16 @@ export const remotiveSource: JobSource = {
 
     return payload.jobs.map((job) => {
       const scopeText = `${job.candidate_required_location} ${job.description}`;
+      const inferredScope = classifyRemoteScope(scopeText);
+      const location = job.candidate_required_location.trim();
+      const remoteScope =
+        inferredScope !== "unknown"
+          ? inferredScope
+          : /^(worldwide|global|anywhere|any location)$/i.test(location)
+            ? "global"
+            : location && !/^remote$/i.test(location)
+              ? "country-restricted"
+              : "unknown";
       return {
         source: "remotive",
         externalId: String(job.id),
