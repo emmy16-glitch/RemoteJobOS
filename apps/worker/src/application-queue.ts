@@ -76,6 +76,7 @@ function autoApplyEligible(
   match?: JobMatchAutomationRow
 ): boolean {
   if (!job?.apply_url) return false;
+  if (job.source.toLowerCase() === "greenhouse:canonical") return false;
   const roleGate = automaticApplicationEligibility({
     title: job.title,
     roleFamily: job.role_family
