@@ -2,7 +2,7 @@ name: Match remote jobs
 
 on:
   schedule:
-    - cron: "27 * * * *"
+    - cron: "42 * * * *"
   workflow_dispatch:
 
 permissions:
