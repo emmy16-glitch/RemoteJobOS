@@ -47,6 +47,39 @@ type ProfileRow = {
   };
 };
 type CvRow = { id: string; job_id: string | null; created_at: string };
+type JobAutomationRow = {
+  id: string;
+  source: string;
+  apply_url: string;
+  source_url: string | null;
+};
+
+const NON_ACTIONABLE_HOSTS = [
+  /(^|\.)remoteok\.com$/i,
+  /(^|\.)remoteok\.io$/i,
+  /(^|\.)producthunt\.com$/i
+];
+
+function autoApplyEligible(job: JobAutomationRow | undefined): boolean {
+  if (!job?.apply_url) return false;
+  try {
+    const url = new URL(job.apply_url);
+    if (!["http:", "https:"].includes(url.protocol)) return false;
+    const host = url.hostname.toLowerCase().replace(/^www\./, "");
+    if (NON_ACTIONABLE_HOSTS.some((pattern) => pattern.test(host))) return false;
+
+    // RemoteOK is useful for discovery, but its public feed often does not
+    // reveal a stable employer ATS target. It may re-enter automation later
+    // if the resolver or a refreshed source record persists a validated
+    // external application URL.
+    if (job.source.toLowerCase() === "remoteok") {
+      return !NON_ACTIONABLE_HOSTS.some((pattern) => pattern.test(host));
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
 type ApplicationRow = {
   id: string;
   job_id: string;
@@ -578,6 +611,30 @@ async function syncProfileApplications(profile: ProfileRow): Promise<{
     `applications?select=id,job_id,profile_id,cv_version_id,status,autonomy_mode&profile_id=eq.${encodeURIComponent(profile.id)}&limit=1000`
   );
 
+  const jobs = await request<JobAutomationRow[]>(
+    "jobs?select=id,source,apply_url,source_url&limit=1000"
+  );
+  const jobsById = new Map(jobs.map((job) => [job.id, job]));
+
+  // Keep non-actionable discovery-only jobs out of the browser queue. If a
+  // later refresh resolves a clean employer URL, restore them automatically.
+  for (const application of applications) {
+    const eligible = autoApplyEligible(jobsById.get(application.job_id));
+    if (!eligible && application.status === "cv-prepared") {
+      await updateApplication(application.id, {
+        status: "source-hold",
+        next_action: "Discovery-only: no validated employer application URL is available yet."
+      });
+      application.status = "source-hold";
+    } else if (eligible && application.status === "source-hold") {
+      await updateApplication(application.id, {
+        status: "cv-prepared",
+        next_action: "cloud-dry-run"
+      });
+      application.status = "cv-prepared";
+    }
+  }
+
   // Before a dry-run starts, keep the application pointed at the newest CV
   // generated from the current profile/job inputs. Once it reaches review we
   // freeze the reviewed CV version so approval cannot silently switch content.
@@ -609,9 +666,11 @@ async function syncProfileApplications(profile: ProfileRow): Promise<{
       job_id: jobId,
       profile_id: profile.id,
       cv_version_id: cv.id,
-      status: "cv-prepared",
+      status: autoApplyEligible(jobsById.get(jobId)) ? "cv-prepared" : "source-hold",
       autonomy_mode: autonomyMode,
-      next_action: "cloud-dry-run"
+      next_action: autoApplyEligible(jobsById.get(jobId))
+        ? "cloud-dry-run"
+        : "Discovery-only: no validated employer application URL is available yet."
     }));
 
   let created: ApplicationRow[] = [];
@@ -630,7 +689,8 @@ async function syncProfileApplications(profile: ProfileRow): Promise<{
   const reviewable = allApplications.filter(
     (application) =>
       application.status === "cv-prepared" &&
-      Boolean(application.cv_version_id)
+      Boolean(application.cv_version_id) &&
+      autoApplyEligible(jobsById.get(application.job_id))
   );
 
   const tasks = reviewable.map((application) => ({
