@@ -235,6 +235,7 @@ function externalTargetScore(
 
   let score = 0;
   if (isKnownApplicationHost(candidateUrl)) score += 100;
+  if (/application form|apply here|apply by|creative network|join our creative network/i.test(label)) score += 140;
   if (/apply|application|careers?|jobs?|join|work with us|company portal|employer portal|apply directly|prefer to apply directly|directly/i.test(label)) score += 60;
   if (/apply|application|careers?|jobs?|join|work/i.test(candidateUrl)) score += 30;
   if (!isAggregatorHost(candidateUrl)) score += 10;
@@ -310,7 +311,9 @@ async function clickApplyLikeControl(page: Page): Promise<{ page: Page; moved: b
     page.getByRole("button", { name: /^apply$/i }).first(),
     page.getByRole("button", { name: /apply (for this job|now)/i }).first(),
     page.getByRole("link", { name: /continue to application/i }).first(),
-    page.getByRole("button", { name: /continue to application/i }).first()
+    page.getByRole("button", { name: /continue to application/i }).first(),
+    page.getByRole("link", { name: /application form|apply here|creative network|join our creative network/i }).first(),
+    page.getByRole("button", { name: /application form|apply here|creative network|join our creative network/i }).first()
   ];
 
   for (const candidate of candidates) {
@@ -377,15 +380,20 @@ async function resolveDeterministically(initialUrl: string): Promise<{
           timeout: 30_000
         });
         await page.waitForTimeout(700);
-        return { url: page.url(), strategy: "playwright-follow" };
       }
     }
 
     if (await hasApplicationForm(page)) {
-      return { url: page.url(), strategy: "direct-form" };
+      return {
+        url: page.url(),
+        strategy: page.url() === initialUrl ? "direct-form" : "playwright-follow"
+      };
     }
 
-    const extractedTarget = await externalApplicationTargetFromPage(page, initialUrl);
+    // A trusted aggregator can point first to the employer's job-description
+    // page (Notion, company careers page, etc.), which then contains the real
+    // external application-form link. Follow that explicit second hop too.
+    const extractedTarget = await externalApplicationTargetFromPage(page, page.url());
     if (extractedTarget) {
       await page.goto(extractedTarget, {
         waitUntil: "domcontentloaded",
