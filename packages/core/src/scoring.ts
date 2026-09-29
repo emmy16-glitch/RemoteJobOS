@@ -19,7 +19,7 @@ const executiveTitle =
   /\b(chief|cto|cio|ciso|vice president|vp\b|head of|director|managing director|general manager)\b/i;
 
 const advancedSeniorityTitle =
-  /\b(senior|sr\.?|staff|principal|lead)\b/i;
+  /\b(staff|principal|lead)\b/i;
 
 const clearlyNonTargetTitle =
   /\b(marketing|content creator|video creation|sales|vertrieb|verkauf|account executive|account manager|business development|customer service|kundenservice|kundendienst|recruiter|recruiting|human resources|hr coordinator|hr manager|talent acquisition|product management|product manager|project manager|program manager|programme manager|engineering manager|operations manager|voice actor|language trainer|student success coach|buchhalter|controller|marktforschung|befragungen|testkäufer|testkunde)\b/i;
@@ -34,7 +34,7 @@ export function automaticApplicationEligibility(
     return { allowed: false, reason: "Executive-level title is outside unattended auto-apply scope" };
   }
   if (advancedSeniorityTitle.test(job.title)) {
-    return { allowed: false, reason: "Senior/staff/lead title is outside unattended auto-apply scope" };
+    return { allowed: false, reason: "Staff/principal/lead title is outside unattended auto-apply scope" };
   }
   if (clearlyNonTargetTitle.test(job.title)) {
     return { allowed: false, reason: "Title is outside the technical auto-apply scope" };
