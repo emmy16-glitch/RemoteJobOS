@@ -37,7 +37,8 @@ const KNOWN_APPLICATION_HOSTS = [
   /successfactors\.(?:com|eu)$/i,
   /taleo\.net$/i,
   /oraclecloud\.com$/i,
-  /eightfold\.ai$/i
+  /eightfold\.ai$/i,
+  /join\.com$/i
 ];
 
 const AGGREGATOR_HOSTS = [
@@ -96,7 +97,8 @@ export type ApplicationTargetValidation = {
 
 export async function validateApplicationTarget(
   url: string,
-  expectedCompany: string
+  expectedCompany: string,
+  expectedTitle = ""
 ): Promise<ApplicationTargetValidation> {
   const expectedCompanyTokens = [...new Set(normalizedWords(expectedCompany))];
   if (!expectedCompanyTokens.length) {
@@ -134,11 +136,37 @@ export async function validateApplicationTarget(
       evidence.includes(token)
     );
 
+    const expectedTitleTokens = [...new Set(normalizedWords(expectedTitle))]
+      .filter((token) => !/^(remote|job|jobs|engineer|developer|software|fullstack|frontend|backend)$/.test(token));
+    const matchedTitleTokens = expectedTitleTokens.filter((token) =>
+      evidence.includes(token)
+    );
+    const recruitingText = `${pageTitle} ${body.slice(0, 8_000)}`;
+    const genericRecruitingDestination =
+      /talent community|join our pack|register your interest|general application|general talent/i.test(
+        recruitingText
+      );
+    const path = httpUrl(page.url())?.pathname.replace(/\/+$/, "") ?? "";
+    const genericCareerLanding = path === "" || /^\/(?:careers?|jobs?)$/i.test(path);
+    const titleMissingFromGenericLanding =
+      Boolean(expectedTitleTokens.length) &&
+      genericCareerLanding &&
+      matchedTitleTokens.length === 0;
+
+    const ok =
+      matchedCompanyTokens.length > 0 &&
+      !genericRecruitingDestination &&
+      !titleMissingFromGenericLanding;
+
     return {
-      ok: matchedCompanyTokens.length > 0,
-      reason: matchedCompanyTokens.length > 0
-        ? "Resolved page matches the expected employer"
-        : "Resolved page does not contain a distinctive token from the expected employer name",
+      ok,
+      reason: ok
+        ? "Resolved page matches the expected employer and job context"
+        : genericRecruitingDestination
+          ? "Resolved page is a generic talent-community/general-interest form, not the exact job application"
+          : titleMissingFromGenericLanding
+            ? "Resolved page is only a generic careers landing page and does not identify the expected job"
+            : "Resolved page does not contain a distinctive token from the expected employer name",
       matchedCompanyTokens,
       expectedCompanyTokens,
       pageTitle
@@ -175,6 +203,9 @@ function externalTargetScore(
   const targetHost = applicationHost(candidateUrl);
   if (!targetHost || targetHost === sourceHost) return -1;
   if (NON_APPLICATION_HOSTS.some((pattern) => pattern.test(targetHost))) return -1;
+  if (/talent community|join our pack|register your interest|general application/i.test(label)) {
+    return -1;
+  }
 
   let score = 0;
   if (isKnownApplicationHost(candidateUrl)) score += 100;
@@ -311,6 +342,18 @@ async function resolveDeterministically(initialUrl: string): Promise<{
       timeout: 30_000
     });
     await page.waitForTimeout(600);
+
+    if (isAggregatorHost(initialUrl)) {
+      const preferredExternal = await externalApplicationTargetFromPage(page, initialUrl);
+      if (preferredExternal) {
+        await page.goto(preferredExternal, {
+          waitUntil: "domcontentloaded",
+          timeout: 30_000
+        });
+        await page.waitForTimeout(700);
+        return { url: page.url(), strategy: "playwright-follow" };
+      }
+    }
 
     if (await hasApplicationForm(page)) {
       return { url: page.url(), strategy: "direct-form" };
