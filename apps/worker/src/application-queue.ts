@@ -67,6 +67,7 @@ type JobMatchAutomationRow = {
 const NON_ACTIONABLE_HOSTS = [
   /(^|\.)remoteok\.com$/i,
   /(^|\.)remoteok\.io$/i,
+  /(^|\.)himalayas\.app$/i,
   /(^|\.)producthunt\.com$/i
 ];
 
