@@ -1079,9 +1079,18 @@ export async function syncApplications(): Promise<number> {
 }
 
 function workerId(): string {
+  const shard = process.env.REMOTEJOBOS_WORKER_SHARD?.trim();
   return process.env.GITHUB_RUN_ID
-    ? `github-actions:${process.env.GITHUB_RUN_ID}`
-    : `worker:${process.pid}`;
+    ? `github-actions:${process.env.GITHUB_RUN_ID}${shard ? `:${shard}` : ""}`
+    : `worker:${process.pid}${shard ? `:${shard}` : ""}`;
+}
+
+function queueBatchLimit(requested: number): number {
+  const configuredCap = Number(process.env.REMOTEJOBOS_HARD_BATCH_CAP ?? "100");
+  const hardCap = Number.isFinite(configuredCap)
+    ? Math.max(10, Math.min(250, configuredCap))
+    : 100;
+  return Math.max(1, Math.min(hardCap, requested));
 }
 
 export async function processAutoSubmissionTasks(maxTasks = 3): Promise<number> {
@@ -1093,7 +1102,7 @@ export async function processAutoSubmissionTasks(maxTasks = 3): Promise<number> 
     throw new Error("Live submission is disabled");
   }
 
-  const limit = Math.max(1, Math.min(10, maxTasks));
+  const limit = queueBatchLimit(maxTasks);
   const id = workerId();
   let processed = 0;
 
@@ -1148,7 +1157,7 @@ export async function processApplicationTasks(maxTasks = 3): Promise<number> {
     return 0;
   }
 
-  const limit = Math.max(1, Math.min(10, maxTasks));
+  const limit = queueBatchLimit(maxTasks);
   const id = workerId();
 
   // The normal queue remains dry-run/review only. Consequential submit tasks
