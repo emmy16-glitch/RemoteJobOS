@@ -25,8 +25,10 @@ export async function loadRegisteredAtsSources(): Promise<JobSource[]> {
   }
 
   const rows = (await response.json()) as RegistryRow[];
-  return rows.map((row) => sourceFromBoard({
-    provider: row.provider,
-    boardKey: row.board_key
-  } satisfies AtsBoard));
+  return rows
+    .filter((row) => Boolean(row.provider && row.board_key?.trim()))
+    .map((row) => sourceFromBoard({
+      provider: row.provider,
+      boardKey: row.board_key.trim()
+    } satisfies AtsBoard));
 }
