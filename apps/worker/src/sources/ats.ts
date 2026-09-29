@@ -12,9 +12,17 @@ function textOnly(input: string) {
   return input.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 }
 
-function classifyAtsRemoteScope(location: string, description: string) {
+function classifyAtsRemoteScope(title: string, location: string, description: string) {
   const normalized = location.replace(/\s+/g, " ").trim();
-  const lower = normalized.toLowerCase();
+
+  // Explicit region qualifiers in the role title override generic company-wide
+  // "Remote, Global" metadata. For example, "(AMER/APAC)" is not worldwide.
+  if (/\bemea\b/i.test(title)) return "emea" as const;
+  if (/\b(?:amer|americas|apac|asia pacific|latam|europe)\b/i.test(title)) {
+    return "country-restricted" as const;
+  }
+  if (/\b(?:united states|usa|us-only|us only)\b/i.test(title)) return "us-only" as const;
+  if (/\b(?:united kingdom|uk-only|uk only)\b/i.test(title)) return "uk-only" as const;
 
   // Structured ATS location metadata is more trustworthy than generic
   // "fully remote" benefit text inside a job description.
@@ -73,7 +81,7 @@ export function greenhouseSource(boardKey: string): JobSource {
           postedAt: job.updated_at,
           locationText: location || "Remote",
           remote: true,
-          remoteScope: classifyAtsRemoteScope(location, description),
+          remoteScope: classifyAtsRemoteScope(job.name, location, description),
           roleFamily: classifyRoleFamily(job.name, description),
           tags: []
         }];
@@ -118,7 +126,7 @@ export function leverSource(boardKey: string): JobSource {
           sourceUrl: job.hostedUrl,
           locationText: location || "Remote",
           remote: true,
-          remoteScope: classifyAtsRemoteScope(location, description),
+          remoteScope: classifyAtsRemoteScope(job.text, location, description),
           roleFamily: classifyRoleFamily(job.text, description),
           tags: [job.categories?.team, job.categories?.commitment].filter((x): x is string => Boolean(x))
         }];
@@ -168,7 +176,7 @@ export function ashbySource(boardKey: string): JobSource {
           postedAt: job.publishedAt,
           locationText: location || "Remote",
           remote: true,
-          remoteScope: classifyAtsRemoteScope(location, description),
+          remoteScope: classifyAtsRemoteScope(job.title, location, description),
           roleFamily: classifyRoleFamily(job.title, description),
           tags: [job.department, job.employmentType].filter((x): x is string => Boolean(x))
         }];
