@@ -308,6 +308,16 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
     const radioGroups = new Map<string, RawField[]>();
     const checkboxGroups = new Map<string, RawField[]>();
 
+    // React-select/Greenhouse typeaheads often render an additional anonymous
+    // text input next to the real combobox. Treating that backing control as a
+    // second required question creates false "field-N" review blockers.
+    const typeaheadLabels = new Set(
+      raw
+        .filter((item) => item.role === "combobox")
+        .map((item) => normalized(bestFieldLabel(item)))
+        .filter(Boolean)
+    );
+
     for (const item of raw) {
       if (item.type !== "checkbox") continue;
       const key = checkboxGroupKey(item);
@@ -320,6 +330,22 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
     const emittedCheckboxGroups = new Set<string>();
 
     for (const item of raw) {
+      const meaningfulLabel = compact(
+        item.label || item.groupLabel || item.nearbyLabel
+      );
+      const anonymous = !item.id && !item.name;
+      if (anonymous && !meaningfulLabel) {
+        continue;
+      }
+
+      if (
+        anonymous &&
+        item.role !== "combobox" &&
+        typeaheadLabels.has(normalized(bestFieldLabel(item)))
+      ) {
+        continue;
+      }
+
       if (item.type === "radio" && item.name) {
         const group = radioGroups.get(item.name) ?? [];
         group.push(item);
