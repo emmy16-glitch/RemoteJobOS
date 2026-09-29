@@ -59,6 +59,16 @@ export interface ApplicationStore {
     report?: Record<string, unknown>,
     error?: string
   ): Promise<void>;
+  saveFormSnapshot(
+    applicationId: string,
+    attemptId: string,
+    formUrl: string,
+    adapter: string,
+    plan: FillPlanEntry[],
+    phase: "planned" | "verified" | "submitted",
+    verified: boolean,
+    metadata?: Record<string, unknown>
+  ): Promise<void>;
   fenceSubmission(applicationId: string, attemptId: string): Promise<boolean>;
   releaseSubmissionFence(applicationId: string, attemptId: string): Promise<boolean>;
   markSubmitted(
