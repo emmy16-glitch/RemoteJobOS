@@ -1,6 +1,8 @@
 import {
   DEFAULT_SAFE_SUBMIT_RETRIES,
-  retryDelayMs
+  automaticApplicationEligibility,
+  retryDelayMs,
+  type RoleFamily
 } from "@remotejobos/core";
 import { config, hasSupabase } from "./config.js";
 import {
@@ -50,8 +52,16 @@ type CvRow = { id: string; job_id: string | null; created_at: string };
 type JobAutomationRow = {
   id: string;
   source: string;
+  title: string;
+  role_family: RoleFamily;
   apply_url: string;
   source_url: string | null;
+};
+
+type JobMatchAutomationRow = {
+  job_id: string;
+  decision: string;
+  score: number;
 };
 
 const NON_ACTIONABLE_HOSTS = [
@@ -60,8 +70,17 @@ const NON_ACTIONABLE_HOSTS = [
   /(^|\.)producthunt\.com$/i
 ];
 
-function autoApplyEligible(job: JobAutomationRow | undefined): boolean {
+function autoApplyEligible(
+  job: JobAutomationRow | undefined,
+  match?: JobMatchAutomationRow
+): boolean {
   if (!job?.apply_url) return false;
+  const roleGate = automaticApplicationEligibility({
+    title: job.title,
+    roleFamily: job.role_family
+  });
+  if (!roleGate.allowed) return false;
+  if (match && match.decision !== "strong-match") return false;
   try {
     const url = new URL(job.apply_url);
     if (!["http:", "https:"].includes(url.protocol)) return false;
@@ -192,7 +211,66 @@ async function verifyWithSalvage(
   return salvagePersistedApplicationResult(applicationId, mode);
 }
 
+async function applicationStillAutoApplyEligible(applicationId: string): Promise<{
+  allowed: boolean;
+  reason: string;
+}> {
+  const rows = await request<Array<{
+    job_id: string;
+    profile_id: string | null;
+  }>>(
+    `applications?select=job_id,profile_id&id=eq.${encodeURIComponent(applicationId)}&limit=1`
+  );
+  const application = rows[0];
+  if (!application) return { allowed: false, reason: "Application record no longer exists" };
+
+  const jobs = await request<JobAutomationRow[]>(
+    `jobs?select=id,source,title,role_family,apply_url,source_url&id=eq.${encodeURIComponent(application.job_id)}&limit=1`
+  );
+  const job = jobs[0];
+  if (!job) return { allowed: false, reason: "Job record no longer exists" };
+
+  const matches = application.profile_id
+    ? await request<JobMatchAutomationRow[]>(
+        `job_matches?select=job_id,decision,score&job_id=eq.${encodeURIComponent(application.job_id)}&profile_id=eq.${encodeURIComponent(application.profile_id)}&limit=1`
+      )
+    : [];
+  const match = matches[0];
+
+  const roleGate = automaticApplicationEligibility({
+    title: job.title,
+    roleFamily: job.role_family
+  });
+  if (!roleGate.allowed) return roleGate;
+  if (match && match.decision !== "strong-match") {
+    return { allowed: false, reason: `Current match decision is ${match.decision}, not strong-match` };
+  }
+  if (!autoApplyEligible(job, match)) {
+    return { allowed: false, reason: "Job is not eligible for unattended auto-apply" };
+  }
+
+  return { allowed: true, reason: "Current job and match remain eligible" };
+}
+
+async function quarantineIneligibleApplication(
+  task: ClaimedTask,
+  applicationId: string,
+  reason: string
+): Promise<void> {
+  await updateApplication(applicationId, {
+    status: "shortlisted",
+    next_action: `Filtered before automation: ${reason}`
+  });
+  await finishTask(task, true);
+}
+
 async function processReviewTask(task: ClaimedTask, applicationId: string): Promise<void> {
+  const eligibility = await applicationStillAutoApplyEligible(applicationId);
+  if (!eligibility.allowed) {
+    await quarantineIneligibleApplication(task, applicationId, eligibility.reason);
+    return;
+  }
+
   const resumeRunId =
     typeof task.payload.runId === "string" && task.payload.runId
       ? task.payload.runId
@@ -381,6 +459,23 @@ async function processReviewTask(task: ClaimedTask, applicationId: string): Prom
 async function processSubmitTask(task: ClaimedTask, applicationId: string): Promise<void> {
   const runId = payloadString(task, "runId");
   const approvalId = payloadString(task, "approvalId");
+
+  const eligibility = await applicationStillAutoApplyEligible(applicationId);
+  if (!eligibility.allowed) {
+    await request(
+      `agent_approvals?id=eq.${encodeURIComponent(approvalId)}&status=eq.approved`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          status: "cancelled",
+          decision_reason: `Auto-submit cancelled: ${eligibility.reason}`,
+          decided_at: new Date().toISOString()
+        })
+      }
+    ).catch(() => undefined);
+    await quarantineIneligibleApplication(task, applicationId, eligibility.reason);
+    return;
+  }
 
   await requireApprovedSubmission(runId, approvalId);
 
@@ -623,14 +718,19 @@ async function syncProfileApplications(profile: ProfileRow): Promise<{
   );
 
   const jobs = await request<JobAutomationRow[]>(
-    "jobs?select=id,source,apply_url,source_url&limit=1000"
+    "jobs?select=id,source,title,role_family,apply_url,source_url&limit=1000"
   );
   const jobsById = new Map(jobs.map((job) => [job.id, job]));
+
+  const matches = await request<JobMatchAutomationRow[]>(
+    `job_matches?select=job_id,decision,score&profile_id=eq.${encodeURIComponent(profile.id)}&limit=2000`
+  );
+  const matchesByJob = new Map(matches.map((match) => [match.job_id, match]));
 
   // Keep non-actionable discovery-only jobs out of the browser queue. If a
   // later refresh resolves a clean employer URL, restore them automatically.
   for (const application of applications) {
-    const eligible = autoApplyEligible(jobsById.get(application.job_id));
+    const eligible = autoApplyEligible(jobsById.get(application.job_id), matchesByJob.get(application.job_id));
     if (!eligible && application.status === "cv-prepared") {
       await updateApplication(application.id, {
         status: "shortlisted",
@@ -677,9 +777,9 @@ async function syncProfileApplications(profile: ProfileRow): Promise<{
       job_id: jobId,
       profile_id: profile.id,
       cv_version_id: cv.id,
-      status: autoApplyEligible(jobsById.get(jobId)) ? "cv-prepared" : "shortlisted",
+      status: autoApplyEligible(jobsById.get(jobId), matchesByJob.get(jobId)) ? "cv-prepared" : "shortlisted",
       autonomy_mode: autonomyMode,
-      next_action: autoApplyEligible(jobsById.get(jobId))
+      next_action: autoApplyEligible(jobsById.get(jobId), matchesByJob.get(jobId))
         ? "cloud-dry-run"
         : "Discovery-only: no validated employer application URL is available yet."
     }));
@@ -701,7 +801,7 @@ async function syncProfileApplications(profile: ProfileRow): Promise<{
     (application) =>
       application.status === "cv-prepared" &&
       Boolean(application.cv_version_id) &&
-      autoApplyEligible(jobsById.get(application.job_id))
+      autoApplyEligible(jobsById.get(application.job_id), matchesByJob.get(application.job_id))
   );
 
   const tasks = reviewable.map((application) => ({
