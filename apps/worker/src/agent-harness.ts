@@ -83,6 +83,14 @@ function asArray(value: unknown): string[] {
   return Array.isArray(value) ? value.map(String) : [];
 }
 
+function pipelineRevision(): string {
+  const raw =
+    process.env.REMOTEJOBOS_PIPELINE_REVISION ??
+    process.env.GITHUB_SHA ??
+    "local";
+  return raw.replace(/[^a-zA-Z0-9._-]+/g, "-").slice(0, 24) || "local";
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!hasSupabase()) throw new Error("Supabase is required for harness operations");
 
@@ -209,7 +217,7 @@ export async function startOrResumeApplicationRun(args: {
     return rows[0] ?? loadRun(existing.id);
   }
 
-  const key = `application:${args.applicationId}:${application.cv_version_id ?? "no-cv"}`;
+  const key = `application:${args.applicationId}:${application.cv_version_id ?? "no-cv"}:${pipelineRevision()}`;
   const existingRows = await request<HarnessRunRow[]>(
     `agent_runs?select=*&idempotency_key=eq.${encodeURIComponent(key)}&limit=1`
   );
