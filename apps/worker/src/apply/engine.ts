@@ -78,6 +78,17 @@ export async function runApplicationPipeline(
       autoApprovedAnswerKeys
     );
 
+    await store.saveFormSnapshot(
+      context.applicationId,
+      attemptId,
+      executionContext.jobUrl,
+      adapter.name,
+      plan,
+      "planned",
+      false,
+      { dryRun: context.dryRun }
+    );
+
     const reviews = plan.filter((entry) => entry.action.type === "human-review");
     if (reviews.length) {
       const reason = `${reviews.length} field(s) require explicit human review`;
@@ -130,6 +141,20 @@ export async function runApplicationPipeline(
       verifiedFieldCount: verification.verifiedFieldCount,
       totalFieldCount: verification.totalFieldCount
     });
+    await store.saveFormSnapshot(
+      context.applicationId,
+      attemptId,
+      executionContext.jobUrl,
+      adapter.name,
+      plan,
+      "verified",
+      true,
+      {
+        dryRun: context.dryRun,
+        verifiedFieldCount: verification.verifiedFieldCount,
+        totalFieldCount: verification.totalFieldCount
+      }
+    );
 
     if (context.dryRun) {
       assertToolFamilyAllowed("report", "evidence");
@@ -293,6 +318,20 @@ export async function runApplicationPipeline(
       confirmationUrl: confirmation.url,
       evidence: confirmation.evidence
     });
+    await store.saveFormSnapshot(
+      context.applicationId,
+      attemptId,
+      executionContext.jobUrl,
+      adapter.name,
+      plan,
+      "submitted",
+      true,
+      {
+        confirmationChecks,
+        confirmationUrl: confirmation.url ?? null,
+        confirmationEvidence: confirmation.evidence ?? null
+      }
+    );
 
     return { status: "submitted", attemptId, confirmed: true };
   } catch (error) {
