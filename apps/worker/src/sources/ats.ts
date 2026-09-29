@@ -57,7 +57,8 @@ export function greenhouseSource(boardKey: string): JobSource {
       const payload = (await response.json()) as {
         jobs?: Array<{
           id: number;
-          name: string;
+          title?: string;
+          name?: string;
           absolute_url: string;
           content?: string;
           updated_at?: string;
@@ -66,14 +67,17 @@ export function greenhouseSource(boardKey: string): JobSource {
       };
 
       return (payload.jobs ?? []).flatMap((job) => {
+        const title = (job.title ?? job.name ?? "").trim();
+        if (!title || !job.absolute_url) return [];
+
         const description = textOnly(job.content ?? "");
         const location = job.location?.name ?? "";
-        const remote = looksRemote(`${job.name} ${location} ${description}`);
+        const remote = looksRemote(`${title} ${location} ${description}`);
         if (!remote) return [];
         return [{
           source: `greenhouse:${boardKey}`,
           externalId: String(job.id),
-          title: job.name,
+          title,
           company: boardKey,
           description,
           applyUrl: job.absolute_url,
@@ -81,8 +85,8 @@ export function greenhouseSource(boardKey: string): JobSource {
           postedAt: job.updated_at,
           locationText: location || "Remote",
           remote: true,
-          remoteScope: classifyAtsRemoteScope(job.name, location, description),
-          roleFamily: classifyRoleFamily(job.name, description),
+          remoteScope: classifyAtsRemoteScope(title, location, description),
+          roleFamily: classifyRoleFamily(title, description),
           tags: []
         }];
       });
