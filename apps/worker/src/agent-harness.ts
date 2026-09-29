@@ -694,7 +694,20 @@ export async function authorizeAutoSubmission(args: {
       })
     });
     approval = rows[0];
-  } else if (approval.status === "pending") {
+  } else if (
+    approval.status === "pending" ||
+    (
+      (approval.status === "cancelled" || approval.status === "expired") &&
+      approval.decision_source === "policy"
+    )
+  ) {
+    const application = await applicationState(args.applicationId);
+    if (application.submission_fenced_at || application.submitted_at) {
+      throw new Error(
+        "Cannot renew policy approval after a submission side effect has started"
+      );
+    }
+
     const rows = await request<ApprovalRow[]>(
       `agent_approvals?id=eq.${encodeURIComponent(approval.id)}&select=*`,
       {
@@ -703,7 +716,10 @@ export async function authorizeAutoSubmission(args: {
         body: JSON.stringify({
           status: "approved",
           decision_source: "policy",
-          decision_reason: "Auto-except policy: verified dry-run had no unresolved fields or blockers",
+          decision_reason:
+            approval.status === "pending"
+              ? "Auto-except policy: verified dry-run had no unresolved fields or blockers"
+              : "Auto-except policy renewed after a fresh clean dry-run superseded the previous policy cancellation",
           decided_at: new Date().toISOString(),
           snapshot: {
             verification: args.verification,
