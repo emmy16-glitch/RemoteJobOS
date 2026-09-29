@@ -197,6 +197,11 @@ export async function startOrResumeApplicationRun(args: {
       throw new Error("Submission is fenced but not confirmed; refusing automatic retry");
     }
 
+    const safeRestartExtension =
+      recovery === "safe-restart" && existing.step_used >= existing.step_limit
+        ? Math.min(160, existing.step_used + (args.stepLimit ?? 40))
+        : existing.step_limit;
+
     const rows = await request<HarnessRunRow[]>(
       `agent_runs?id=eq.${encodeURIComponent(existing.id)}&select=*`,
       {
@@ -208,6 +213,7 @@ export async function startOrResumeApplicationRun(args: {
           status: recovery === "already-complete" ? "completed" : "running",
           recovery_strategy: recovery,
           last_error: null,
+          step_limit: safeRestartExtension,
           started_at: existing.started_at ?? new Date().toISOString(),
           updated_at: new Date().toISOString(),
           completed_at: recovery === "already-complete" ? new Date().toISOString() : null
