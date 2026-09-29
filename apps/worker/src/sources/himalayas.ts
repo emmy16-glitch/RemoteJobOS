@@ -58,12 +58,16 @@ function stripHtml(value: string): string {
 
 function isoDate(value: number | string | undefined): string | undefined {
   if (value === undefined || value === null || value === "") return undefined;
-  const date =
+  const numeric =
     typeof value === "number"
-      ? new Date(value)
+      ? value
       : /^\d+$/.test(value)
-        ? new Date(Number(value))
-        : new Date(value);
+        ? Number(value)
+        : undefined;
+  const date =
+    numeric !== undefined
+      ? new Date(numeric < 10_000_000_000 ? numeric * 1000 : numeric)
+      : new Date(value);
 
   return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
 }
