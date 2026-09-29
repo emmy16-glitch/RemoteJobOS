@@ -986,14 +986,17 @@ async function syncProfileApplications(profile: ProfileRow): Promise<{
       autoApplyEligible(jobsById.get(application.job_id), matchesByJob.get(application.job_id))
   );
 
-  const tasks = reviewable.map((application) => ({
-    task_type: REVIEW_TASK_TYPE,
-    payload: { applicationId: application.id },
-    status: "pending",
-    priority: 50,
-    max_attempts: 3,
-    idempotency_key: `${REVIEW_TASK_TYPE}:${application.id}:${application.cv_version_id}:${pipelineRevision()}`
-  }));
+  const tasks = reviewable.map((application) => {
+    const score = matchesByJob.get(application.job_id)?.score ?? 50;
+    return {
+      task_type: REVIEW_TASK_TYPE,
+      payload: { applicationId: application.id },
+      status: "pending",
+      priority: Math.max(1, Math.min(100, score)),
+      max_attempts: 3,
+      idempotency_key: `${REVIEW_TASK_TYPE}:${application.id}:${application.cv_version_id}:${pipelineRevision()}`
+    };
+  });
 
   if (tasks.length) {
     await request(
