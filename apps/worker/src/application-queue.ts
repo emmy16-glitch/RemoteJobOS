@@ -622,11 +622,11 @@ async function syncProfileApplications(profile: ProfileRow): Promise<{
     const eligible = autoApplyEligible(jobsById.get(application.job_id));
     if (!eligible && application.status === "cv-prepared") {
       await updateApplication(application.id, {
-        status: "source-hold",
+        status: "shortlisted",
         next_action: "Discovery-only: no validated employer application URL is available yet."
       });
-      application.status = "source-hold";
-    } else if (eligible && application.status === "source-hold") {
+      application.status = "shortlisted";
+    } else if (eligible && application.status === "shortlisted") {
       await updateApplication(application.id, {
         status: "cv-prepared",
         next_action: "cloud-dry-run"
@@ -666,7 +666,7 @@ async function syncProfileApplications(profile: ProfileRow): Promise<{
       job_id: jobId,
       profile_id: profile.id,
       cv_version_id: cv.id,
-      status: autoApplyEligible(jobsById.get(jobId)) ? "cv-prepared" : "source-hold",
+      status: autoApplyEligible(jobsById.get(jobId)) ? "cv-prepared" : "shortlisted",
       autonomy_mode: autonomyMode,
       next_action: autoApplyEligible(jobsById.get(jobId))
         ? "cloud-dry-run"
