@@ -1,5 +1,8 @@
 import { createDefaultAdapterRegistry } from "./default-adapters.js";
-import { resolveApplicationTarget } from "./application-target-resolver.js";
+import {
+  resolveApplicationTarget,
+  validateApplicationTarget
+} from "./application-target-resolver.js";
 import { runApplicationPipeline, type PipelineOutcome } from "./engine.js";
 import {
   SupabaseApplicationStore,
@@ -157,6 +160,35 @@ export async function runOneApplication(
       adaptiveAttempted: target.adaptiveAttempted
     }
   );
+
+  if (target.changed) {
+    const validation = await validateApplicationTarget(target.url, job.company);
+    await recordEvent(
+      validation.ok ? "application.target_validated" : "application.target_mismatch",
+      validation.reason,
+      {
+        applicationId,
+        jobId: job.id,
+        company: job.company,
+        resolvedApplyUrl: target.url,
+        targetHost: target.targetHost,
+        matchedCompanyTokens: validation.matchedCompanyTokens,
+        expectedCompanyTokens: validation.expectedCompanyTokens,
+        pageTitle: validation.pageTitle
+      }
+    );
+
+    if (!validation.ok) {
+      await patchApplication(
+        applicationId,
+        "needs-attention",
+        "Resolved application page could not be verified as belonging to the expected employer. RemoteJobOS will not fill or submit it."
+      );
+      throw new Error(
+        `Application target mismatch: expected employer "${job.company}" but resolved page could not be verified`
+      );
+    }
+  }
 
   if (target.changed) {
     await patchJobApplyUrl(job.id, target.url);
