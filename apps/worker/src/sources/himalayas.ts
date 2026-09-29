@@ -102,7 +102,7 @@ function expired(job: HimalayasJob): boolean {
 export const himalayasSource: JobSource = {
   name: "himalayas",
   // Their JSON feed is refreshed every 24 hours. Respect that upstream cadence.
-  minimumIntervalMinutes: 24 * 60,
+  minimumIntervalMinutes: 22 * 60,
 
   async fetchJobs(): Promise<NormalizedJob[]> {
     const maxPages = Math.max(
