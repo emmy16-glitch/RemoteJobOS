@@ -1,8 +1,9 @@
 name: Auto-submit verified applications
 
 on:
+  # Recovery catch-up only. Normal auto-submit now runs immediately after review.
   schedule:
-    - cron: "7,22,37,52 * * * *"
+    - cron: "12,42 * * * *"
   workflow_dispatch:
     inputs:
       max_tasks:
