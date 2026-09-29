@@ -1,6 +1,21 @@
 import { classifyRemoteScope, classifyRoleFamily, type NormalizedJob } from "@remotejobos/core";
 import type { JobSource } from "./types.js";
 
+function remotiveRemoteScope(location: string, description: string) {
+  const explicit = classifyRemoteScope(`${location} ${description}`);
+  if (explicit !== "unknown") return explicit;
+
+  const normalized = location.trim().toLowerCase();
+  if (!normalized || /^(remote|anywhere|worldwide|global|any location)$/i.test(normalized)) {
+    return normalized && /anywhere|worldwide|global/i.test(normalized) ? "global" : "unknown";
+  }
+
+  // Remotive's candidate_required_location is itself an eligibility field.
+  // If it names countries/regions but none of our broad-scope patterns match,
+  // treat it as restricted rather than assuming worldwide eligibility.
+  return "country-restricted";
+}
+
 type RemotiveJob = {
   id: number;
   url: string;
@@ -37,7 +52,7 @@ export const remotiveSource: JobSource = {
         salaryText: job.salary || undefined,
         locationText: job.candidate_required_location || "Remote",
         remote: true,
-        remoteScope: classifyRemoteScope(scopeText),
+        remoteScope: remotiveRemoteScope(job.candidate_required_location, job.description),
         roleFamily: classifyRoleFamily(job.title, job.description),
         tags: [job.category, ...(job.tags ?? [])].filter(Boolean)
       };
