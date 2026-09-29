@@ -115,6 +115,12 @@ export default async function AnalyticsPage() {
           <div className="status">{applications.length} application records</div>
         </header>
 
+        <nav className="sectionTabs" aria-label="AI and CV sections">
+          <a href="/cvs">CV history</a>
+          <a href="/answers">Answer vault</a>
+          <a className="active" href="/analytics">Analytics</a>
+        </nav>
+
         <section className="metrics">
           <article className="metric"><span>Average match</span><strong>{averageMatch}%</strong><small>Across scored remote jobs</small></article>
           <article className="metric"><span>Confirmed submitted</span><strong>{applied}</strong><small>{pct(applied, applications.length)}% of application records</small></article>
