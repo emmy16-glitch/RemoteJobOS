@@ -132,7 +132,7 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
 
   private controls(page: Page): Locator {
     return page.locator(
-      'input:not([type="hidden"]):not([type="submit"]):not([type="button"]), textarea, select'
+      'input:visible:not([type="hidden"]):not([type="submit"]):not([type="button"]):not(.iti__search-input):not([id*="__search-input"]), textarea:visible, select:visible'
     );
   }
 
