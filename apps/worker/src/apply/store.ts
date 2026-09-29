@@ -7,6 +7,9 @@ type ProfileFact = {
   title?: string;
   body?: string;
   url?: string;
+  organization?: string;
+  startDate?: string;
+  endDate?: string;
   highlights?: string[];
   keywords?: string[];
   technologies?: string[];
@@ -119,6 +122,65 @@ function deriveSafeApplicationAnswers(
   answers[`why are you interested in joining ${company.toLowerCase()}`] = interestAnswer;
   answers["why are you interested in this role"] = interestAnswer;
   answers["why do you want to work here"] = interestAnswer;
+  answers["why would you like to work with us and in this role"] = interestAnswer;
+  answers["why would you like to work with us"] = interestAnswer;
+
+  const education = facts.find((fact) =>
+    fact.kind === "education" &&
+    Boolean(compactText(fact.organization)) &&
+    /bachelor|b\.?(?:tech|sc)|degree|university|college/i.test(
+      [fact.title, fact.body, fact.organization].join(" ")
+    )
+  );
+  if (education) {
+    const school = compactText(education.organization);
+    const degree = compactText(education.title);
+    const startYear = compactText(education.startDate).match(/\b(19|20)\d{2}\b/)?.[0];
+    const endYear = compactText(education.endDate).match(/\b(19|20)\d{2}\b/)?.[0];
+
+    if (school) {
+      answers.school = school;
+      answers.university = school;
+      answers.institution = school;
+      answers["school name"] = school;
+    }
+    if (degree) {
+      answers.degree = degree;
+      answers["degree name"] = degree;
+      answers["field of study"] = degree;
+    }
+    if (startYear) {
+      answers["start year"] = startYear;
+      answers["start date year"] = startYear;
+      answers["education start year"] = startYear;
+    }
+    if (endYear) {
+      answers["end year"] = endYear;
+      answers["end date year"] = endYear;
+      answers["graduation year"] = endYear;
+      answers["expected graduation year"] = endYear;
+    }
+  }
+
+  const postgresFacts = facts.filter((fact) =>
+    [fact.title, fact.body, ...(fact.highlights ?? []), ...(fact.technologies ?? []), ...(fact.keywords ?? [])]
+      .join(" ")
+      .toLowerCase()
+      .includes("postgres")
+  );
+  if (postgresFacts.length) {
+    const postgresEvidence = postgresFacts.slice(0, 3).map((fact) => {
+      const context = [compactText(fact.title), compactText(fact.body)]
+        .filter(Boolean)
+        .join(": ");
+      return context;
+    }).filter(Boolean);
+
+    answers["describe your postgres experience"] =
+      "I have hands-on PostgreSQL experience through software, backend, deployment, and cloud-hosted project work. " +
+      (postgresEvidence.length ? postgresEvidence.join(" ") + " " : "") +
+      "My work has focused on practical application data, integration, deployment, troubleshooting, and reliability rather than claiming database-scale experience I have not verified.";
+  }
 
   const remoteAnswer =
     "I have worked across software development, cybersecurity, DevOps, QA automation, deployment, and technical product work using GitHub-based workflows, automated tests, CI/CD, issue-based collaboration, logs, and written technical documentation. " +
