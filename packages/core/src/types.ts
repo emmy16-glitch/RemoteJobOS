@@ -47,6 +47,7 @@ export interface CareerProfile {
   maxSeniority: Seniority;
   country?: string;
   blockedRequirements?: string[];
+  verifiedAnswers?: Record<string, string>;
 }
 
 export interface ScoreBreakdown {
