@@ -27,6 +27,7 @@ type RawField = {
   value: string;
   required: boolean;
   options: string[];
+  nearbyLabel: string;
 };
 
 function compact(value: string | null | undefined): string {
@@ -65,6 +66,45 @@ function isSensitive(label: string): boolean {
 
 function boolValue(value: string): boolean {
   return /^(1|true|yes|y|on)$/i.test(value.trim());
+}
+
+function semanticFieldLabel(raw: RawField): string | undefined {
+  const key = `${raw.name} ${raw.id}`.toLowerCase();
+
+  if (/candidate\.name|candidate-name/.test(key)) return "Name";
+  if (/candidate\.email|candidate-email/.test(key)) return "Email";
+  if (/candidate\.phone|candidate-phone/.test(key)) return "Phone";
+  if (/candidate\.cv|candidate-cv|resume/.test(key)) return "Resume / CV";
+  if (/candidate\.photo|candidate-photo/.test(key)) return "Profile photo";
+  if (/candidate\.locations|preferred.*location/.test(key)) return "Preferred work location";
+
+  return undefined;
+}
+
+function genericSectionLabel(value: string): boolean {
+  return /^(meine daten|fragen|questions?|my data|personal information|application details)$/i.test(
+    compact(value)
+  );
+}
+
+function bestFieldLabel(raw: RawField): string {
+  const semantic = semanticFieldLabel(raw);
+  const candidates = [
+    raw.groupLabel,
+    raw.label,
+    raw.nearbyLabel
+  ].map(compact).filter(Boolean);
+
+  const specific = candidates.find((value) => !genericSectionLabel(value));
+  if (specific) return specific;
+  if (semantic) return semantic;
+  return candidates[0] || raw.name || raw.id || `field-${raw.index}`;
+}
+
+function checkboxGroupKey(raw: RawField): string {
+  if (!raw.name) return "";
+  if (!/(multiContent|locations\.value)/i.test(raw.name)) return "";
+  return raw.name.replace(/-\d+(?:-\d+)?$/, "");
 }
 
 export class PlaywrightAtsAdapter implements ApplicationAdapter {
@@ -171,13 +211,24 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
         const input = element as HTMLInputElement;
         const fieldset = element.closest("fieldset");
         const legend = fieldset?.querySelector("legend")?.textContent ?? "";
+        const labelledBy = (element.getAttribute("aria-labelledby") ?? "")
+          .split(/\s+/)
+          .filter(Boolean)
+          .map((id) => document.getElementById(id)?.textContent ?? "")
+          .join(" ");
         const directLabel =
-          (element as HTMLInputElement).labels?.[0]?.textContent ??
           element.getAttribute("aria-label") ??
           element.getAttribute("placeholder") ??
+          labelledBy ??
+          (element as HTMLInputElement).labels?.[0]?.textContent ??
           element.getAttribute("name") ??
           element.getAttribute("id") ??
           "";
+
+        const nearby =
+          element.closest('[data-testid*="question" i], [class*="question" i], [class*="field" i], [class*="form-group" i]');
+        const nearbyLabel =
+          nearby?.querySelector("legend, label, [role='heading'], h1, h2, h3, h4")?.textContent ?? "";
 
         return {
           index,
@@ -197,7 +248,8 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
               ? Array.from((element as HTMLSelectElement).options)
                   .map((option) => (option.label || option.textContent || option.value).trim())
                   .filter(Boolean)
-              : []
+              : [],
+          nearbyLabel: (nearbyLabel ?? "").replace(/\s+/g, " ").trim()
         };
       })
     );
@@ -215,6 +267,18 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
 
     const fields: ApplicationField[] = [];
     const radioGroups = new Map<string, RawField[]>();
+    const checkboxGroups = new Map<string, RawField[]>();
+
+    for (const item of raw) {
+      if (item.type !== "checkbox") continue;
+      const key = checkboxGroupKey(item);
+      if (!key) continue;
+      const group = checkboxGroups.get(key) ?? [];
+      group.push(item);
+      checkboxGroups.set(key, group);
+    }
+
+    const emittedCheckboxGroups = new Set<string>();
 
     for (const item of raw) {
       if (item.type === "radio" && item.name) {
@@ -224,7 +288,31 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
         continue;
       }
 
-      const label = compact(item.groupLabel || item.label || item.name || item.id || "field-" + item.index);
+      if (item.type === "checkbox") {
+        const groupKey = checkboxGroupKey(item);
+        const group = groupKey ? checkboxGroups.get(groupKey) : undefined;
+        if (group && group.length > 1) {
+          if (emittedCheckboxGroups.has(groupKey)) continue;
+          emittedCheckboxGroups.add(groupKey);
+
+          const label = bestFieldLabel(group[0]!);
+          const options = group
+            .map((entry) => compact(entry.label || entry.value || entry.id))
+            .filter((value, index, all) => value && all.indexOf(value) === index);
+
+          fields.push({
+            key: "checkbox-group:" + groupKey,
+            label,
+            kind: "multi-select",
+            required: group.some((entry) => entry.required),
+            options: options.length ? options : undefined,
+            sensitive: isSensitive(label)
+          });
+          continue;
+        }
+      }
+
+      const label = bestFieldLabel(item);
       fields.push({
         key: item.id || item.name || "dom:" + item.index,
         label,
@@ -242,7 +330,7 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
 
     for (const [name, group] of radioGroups) {
       const first = group[0]!;
-      const label = compact(first.groupLabel || first.label || name);
+      const label = bestFieldLabel(first);
       fields.push({
         key: "radio:" + name,
         label,
@@ -438,6 +526,56 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
     };
   }
 
+  private async findSubmitControl(page: Page): Promise<Locator | undefined> {
+    const conventional = page.locator(
+      'form button[type="submit"]:visible, form input[type="submit"]:visible'
+    );
+    const conventionalCount = await conventional.count();
+    if (conventionalCount === 1) return conventional.first();
+
+    const controls = page.locator(
+      'form button:visible, form input[type="button"]:visible, form input[type="submit"]:visible'
+    );
+    const matches: number[] = [];
+    const count = await controls.count();
+    const positive =
+      /submit|submit application|apply|apply now|send application|send|bewerben|jetzt bewerben|bewerbung absenden|absenden|senden|postuler|candidater/i;
+    const negative = /save|draft|back|previous|cancel|next|continue|preview/i;
+
+    for (let index = 0; index < count; index += 1) {
+      const control = controls.nth(index);
+      const text = compact(
+        [
+          await control.textContent().catch(() => ""),
+          await control.getAttribute("value").catch(() => ""),
+          await control.getAttribute("aria-label").catch(() => ""),
+          await control.getAttribute("title").catch(() => "")
+        ].filter(Boolean).join(" ")
+      );
+      if (positive.test(text) && !negative.test(text)) {
+        matches.push(index);
+      }
+    }
+
+    if (matches.length === 1) return controls.nth(matches[0]!);
+
+    const roleMatch = page.getByRole("button", {
+      name: /submit application|submit|apply now|apply|send application|bewerben|jetzt bewerben|bewerbung absenden|absenden|senden|postuler|candidater/i
+    });
+    const visibleRoleMatches: number[] = [];
+    const roleCount = await roleMatch.count();
+    for (let index = 0; index < roleCount; index += 1) {
+      if (await roleMatch.nth(index).isVisible().catch(() => false)) {
+        visibleRoleMatches.push(index);
+      }
+    }
+    if (visibleRoleMatches.length === 1) {
+      return roleMatch.nth(visibleRoleMatches[0]!);
+    }
+
+    return undefined;
+  }
+
   async prepareSubmit(context: ApplicationContext) {
     const page = await this.ensurePage(context);
 
@@ -449,12 +587,9 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
       };
     }
 
-    let submit = page.locator('button[type="submit"]:visible, input[type="submit"]:visible').first();
-    if (!(await submit.count())) {
-      submit = page.getByRole("button", { name: /submit application|submit/i }).first();
-    }
+    const submit = await this.findSubmitControl(page);
 
-    if (!(await submit.count()) || !(await submit.isVisible().catch(() => false))) {
+    if (!submit || !(await submit.isVisible().catch(() => false))) {
       return {
         ready: false,
         retryable: true,
@@ -476,12 +611,9 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
   async submit(context: ApplicationContext): Promise<SubmitResult> {
     const page = await this.ensurePage(context);
 
-    let submit = page.locator('button[type="submit"]:visible, input[type="submit"]:visible').first();
-    if (!(await submit.count())) {
-      submit = page.getByRole("button", { name: /submit application|submit/i }).first();
-    }
+    const submit = await this.findSubmitControl(page);
 
-    if (!(await submit.count()) || !(await submit.isVisible().catch(() => false))) {
+    if (!submit || !(await submit.isVisible().catch(() => false))) {
       return {
         submitted: false,
         sideEffectStarted: false,
