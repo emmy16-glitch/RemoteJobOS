@@ -6,39 +6,115 @@ import {
 } from "@remotejobos/core";
 import { config, hasSupabase } from "./config.js";
 
+type ExistingJobTarget = {
+  source: string;
+  external_id: string;
+  apply_url: string;
+};
+
+function hostOf(value: string | undefined): string {
+  if (!value) return "";
+  try {
+    return new URL(value).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
+
+function isLowQualityApplicationTarget(value: string | undefined): boolean {
+  const host = hostOf(value);
+  return (
+    !host ||
+    /(^|\.)remoteok\.(?:com|io)$/i.test(host) ||
+    /(^|\.)producthunt\.com$/i.test(host)
+  );
+}
+
+async function existingRemoteOkTargets(
+  jobs: NormalizedJob[]
+): Promise<Map<string, string>> {
+  const ids = jobs
+    .filter((job) => job.source.toLowerCase() === "remoteok")
+    .map((job) => job.externalId)
+    .filter(Boolean);
+
+  if (!ids.length) return new Map();
+
+  const response = await fetch(
+    `${config.supabaseUrl}/rest/v1/jobs?select=source,external_id,apply_url&source=eq.remoteok&limit=1000`,
+    {
+      headers: {
+        apikey: config.supabaseServiceRoleKey,
+        authorization: `Bearer ${config.supabaseServiceRoleKey}`
+      }
+    }
+  );
+
+  if (!response.ok) {
+    console.warn(
+      `[persist] could not load existing RemoteOK targets: ${response.status} ${await response.text()}`
+    );
+    return new Map();
+  }
+
+  const wanted = new Set(ids);
+  const rows = await response.json() as ExistingJobTarget[];
+  return new Map(
+    rows
+      .filter(
+        (row) =>
+          wanted.has(row.external_id) &&
+          !isLowQualityApplicationTarget(row.apply_url)
+      )
+      .map((row) => [row.external_id, row.apply_url])
+  );
+}
+
 export async function persistJobs(jobs: NormalizedJob[]) {
   if (!hasSupabase()) {
     console.log(`[dry-storage] Supabase not configured; ${jobs.length} jobs were normalized but not persisted.`);
     return;
   }
 
-  const rows = jobs.map((job) => ({
-    source: job.source,
-    external_id: job.externalId,
-    title: job.title,
-    company: job.company,
-    description: job.description,
-    apply_url: job.applyUrl,
-    source_url: job.sourceUrl ?? null,
-    posted_at: job.postedAt ?? null,
-    salary_text: job.salaryText ?? null,
-    location_text: job.locationText ?? null,
-    remote: job.remote,
-    remote_scope: job.remoteScope,
-    role_family: job.roleFamily,
-    tags: job.tags,
-    canonical_url: canonicalizeJobUrl(job.applyUrl),
-    dedupe_key: makeJobDedupeKey({
-      company: job.company,
+  const preservedRemoteOkTargets = await existingRemoteOkTargets(jobs);
+
+  const rows = jobs.map((job) => {
+    const preserved =
+      job.source.toLowerCase() === "remoteok" &&
+      isLowQualityApplicationTarget(job.applyUrl)
+        ? preservedRemoteOkTargets.get(job.externalId)
+        : undefined;
+
+    const effectiveApplyUrl = preserved ?? job.applyUrl;
+
+    return {
+      source: job.source,
+      external_id: job.externalId,
       title: job.title,
-      locationText: job.locationText
-    }),
-    content_fingerprint: contentFingerprint({
       company: job.company,
-      title: job.title,
-      description: job.description
-    })
-  }));
+      description: job.description,
+      apply_url: effectiveApplyUrl,
+      source_url: job.sourceUrl ?? null,
+      posted_at: job.postedAt ?? null,
+      salary_text: job.salaryText ?? null,
+      location_text: job.locationText ?? null,
+      remote: job.remote,
+      remote_scope: job.remoteScope,
+      role_family: job.roleFamily,
+      tags: job.tags,
+      canonical_url: canonicalizeJobUrl(effectiveApplyUrl),
+      dedupe_key: makeJobDedupeKey({
+        company: job.company,
+        title: job.title,
+        locationText: job.locationText
+      }),
+      content_fingerprint: contentFingerprint({
+        company: job.company,
+        title: job.title,
+        description: job.description
+      })
+    };
+  });
 
   const response = await fetch(`${config.supabaseUrl}/rest/v1/rpc/ingest_discovered_jobs`, {
     method: "POST",
