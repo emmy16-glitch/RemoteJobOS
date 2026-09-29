@@ -506,13 +506,17 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
     const page = await this.ensurePage(context);
     const issues: VerificationIssue[] = [];
 
-    const captcha = page.locator(
-      'iframe[src*="recaptcha"]:visible, iframe[src*="hcaptcha"]:visible, [data-sitekey]:visible, [class*="captcha" i]:visible'
+    // Many ATS pages preload an invisible reCAPTCHA badge even when no user
+    // challenge is active. Do not block merely because the passive badge/widget
+    // exists; block only when an interactive challenge or verification prompt
+    // is actually being presented to the applicant.
+    const challengeFrame = page.locator(
+      'iframe[title*="challenge" i]:visible, iframe[src*="hcaptcha.com/captcha"]:visible, iframe[src*="challenges.cloudflare.com"]:visible'
     );
     const challengeText = await page.locator("body").innerText().catch(() => "");
     const visibleChallenge =
-      (await captcha.count()) > 0 ||
-      /verify you are human|complete the captcha|security verification|checking your browser/i.test(
+      (await challengeFrame.count()) > 0 ||
+      /verify you are human|complete (?:the )?captcha|security verification|checking your browser|please complete the security check/i.test(
         challengeText.slice(0, 5_000)
       );
 
@@ -520,7 +524,7 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
       issues.push({
         fieldKey: "captcha",
         code: "unverified",
-        message: "Visible CAPTCHA or anti-bot challenge detected; human review is required"
+        message: "Interactive CAPTCHA or anti-bot challenge detected; human review is required"
       });
     }
 
