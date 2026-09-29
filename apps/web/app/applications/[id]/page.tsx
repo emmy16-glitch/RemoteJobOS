@@ -7,6 +7,15 @@ import { createAdminSupabaseClient } from "../../../lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
+type CvRow = {
+  id: string;
+  version: number;
+  family: string;
+  content: Record<string, unknown> | null;
+  storage_path: string | null;
+  created_at: string;
+};
+
 type SnapshotField = {
   key?: string;
   label?: string;
@@ -76,14 +85,7 @@ export default async function ApplicationDetailsPage({
   if (jobError) throw new Error(jobError.message);
   if (!job) notFound();
 
-  let cv: {
-    id: string;
-    version: number;
-    family: string;
-    content: Record<string, unknown> | null;
-    storage_path: string | null;
-    created_at: string;
-  } | null = null;
+  let cv: CvRow | null = null;
   let cvUrl: string | null = null;
 
   if (application.cv_version_id) {
@@ -93,7 +95,7 @@ export default async function ApplicationDetailsPage({
       .eq("id", application.cv_version_id)
       .maybeSingle();
     if (cvResult.error) throw new Error(cvResult.error.message);
-    cv = cvResult.data as typeof cv;
+    cv = (cvResult.data as CvRow | null) ?? null;
 
     if (cv?.storage_path) {
       const signed = await supabase.storage
