@@ -87,7 +87,7 @@ async function prepareProfileCvPlans(profile: ProfileRow): Promise<number> {
   }
 
   const matches = await getJson<MatchRow[]>(
-    `job_matches?select=job_id&profile_id=eq.${encodeURIComponent(profile.id)}&decision=eq.strong-match&order=created_at.desc&limit=100`
+    `job_matches?select=job_id&profile_id=eq.${encodeURIComponent(profile.id)}&decision=eq.strong-match&order=created_at.desc&limit=1000`
   );
   if (!matches.length) return 0;
 
