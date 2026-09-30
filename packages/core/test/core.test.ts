@@ -537,3 +537,24 @@ test("reuses explicitly approved consent variants without bypassing employer no-
   ]);
   assert.equal(plan[4]?.action.type, "human-review");
 });
+
+
+test("does not reuse email or phone aliases inside compound prompts", async () => {
+  const { buildDeterministicFillPlan } = await import("../src/planner.ts");
+  const plan = buildDeterministicFillPlan(
+    [
+      {
+        key: "references",
+        label: "Please provide three professional references with name, phone, and email for each reference.",
+        kind: "textarea" as const,
+        required: false
+      }
+    ],
+    {
+      email: "candidate@example.com",
+      phone: "+2348000000000"
+    }
+  );
+
+  assert.equal(plan[0]?.action.type, "skip");
+});
