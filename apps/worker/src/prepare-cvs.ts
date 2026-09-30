@@ -106,9 +106,19 @@ async function prepareProfileCvPlans(profile: ProfileRow): Promise<number> {
   );
   if (!matches.length) return 0;
 
-  const existing = await getAllJson<ExistingCvRow>(
-    `cv_versions?select=job_id,version,content&profile_id=eq.${encodeURIComponent(profile.id)}&family=not.is.null`
-  );
+  const jobIds = [...new Set(matches.map((row) => row.job_id))];
+
+  const existing: ExistingCvRow[] = [];
+  const cvChunkSize = 100;
+  for (let index = 0; index < jobIds.length; index += cvChunkSize) {
+    const chunk = jobIds.slice(index, index + cvChunkSize);
+    existing.push(
+      ...(await getJson<ExistingCvRow[]>(
+        `cv_versions?select=job_id,version,content&profile_id=eq.${encodeURIComponent(profile.id)}&family=not.is.null&job_id=in.(${chunk.join(",")})`
+      ))
+    );
+  }
+
   const existingByJob = new Map<string, ExistingCvRow[]>();
   for (const cv of existing) {
     if (!cv.job_id) continue;
@@ -117,7 +127,6 @@ async function prepareProfileCvPlans(profile: ProfileRow): Promise<number> {
     existingByJob.set(cv.job_id, bucket);
   }
 
-  const jobIds = [...new Set(matches.map((row) => row.job_id))];
   const jobs: JobRow[] = [];
   const jobChunkSize = 100;
   for (let index = 0; index < jobIds.length; index += jobChunkSize) {
@@ -185,19 +194,23 @@ async function prepareProfileCvPlans(profile: ProfileRow): Promise<number> {
 
   if (!rows.length) return 0;
 
-  const response = await fetch(`${config.supabaseUrl}/rest/v1/cv_versions`, {
-    method: "POST",
-    headers: {
-      apikey: config.supabaseServiceRoleKey,
-      authorization: `Bearer ${config.supabaseServiceRoleKey}`,
-      "content-type": "application/json",
-      prefer: "return=minimal"
-    },
-    body: JSON.stringify(rows)
-  });
+  const writeChunkSize = 100;
+  for (let index = 0; index < rows.length; index += writeChunkSize) {
+    const chunk = rows.slice(index, index + writeChunkSize);
+    const response = await fetch(`${config.supabaseUrl}/rest/v1/cv_versions`, {
+      method: "POST",
+      headers: {
+        apikey: config.supabaseServiceRoleKey,
+        authorization: `Bearer ${config.supabaseServiceRoleKey}`,
+        "content-type": "application/json",
+        prefer: "return=minimal"
+      },
+      body: JSON.stringify(chunk)
+    });
 
-  if (!response.ok) {
-    throw new Error(`CV plan persistence failed: ${response.status} ${await response.text()}`);
+    if (!response.ok) {
+      throw new Error(`CV plan persistence failed: ${response.status} ${await response.text()}`);
+    }
   }
 
   return rows.length;
