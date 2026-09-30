@@ -52,6 +52,7 @@ type CvRow = { id: string; job_id: string | null; created_at: string };
 type JobAutomationRow = {
   id: string;
   source: string;
+  company: string;
   title: string;
   role_family: RoleFamily;
   apply_url: string;
@@ -76,7 +77,10 @@ function autoApplyEligible(
   match?: JobMatchAutomationRow
 ): boolean {
   if (!job?.apply_url) return false;
-  if (job.source.toLowerCase() === "greenhouse:canonical") return false;
+  if (
+    job.source.toLowerCase() === "greenhouse:canonical" ||
+    job.company.trim().toLowerCase() === "canonical"
+  ) return false;
   const roleGate = automaticApplicationEligibility({
     title: job.title,
     roleFamily: job.role_family
@@ -246,7 +250,7 @@ async function applicationStillAutoApplyEligible(applicationId: string): Promise
   if (!application) return { allowed: false, reason: "Application record no longer exists" };
 
   const jobs = await request<JobAutomationRow[]>(
-    `jobs?select=id,source,title,role_family,apply_url,source_url&id=eq.${encodeURIComponent(application.job_id)}&limit=1`
+    `jobs?select=id,source,company,title,role_family,apply_url,source_url&id=eq.${encodeURIComponent(application.job_id)}&limit=1`
   );
   const job = jobs[0];
   if (!job) return { allowed: false, reason: "Job record no longer exists" };
@@ -885,7 +889,7 @@ async function syncProfileApplications(profile: ProfileRow): Promise<{
   );
 
   const jobs = await request<JobAutomationRow[]>(
-    "jobs?select=id,source,title,role_family,apply_url,source_url&limit=1000"
+    "jobs?select=id,source,company,title,role_family,apply_url,source_url&limit=1000"
   );
   const jobsById = new Map(jobs.map((job) => [job.id, job]));
 
