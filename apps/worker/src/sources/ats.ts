@@ -14,9 +14,26 @@ function textOnly(input: string) {
 
 function classifyAtsRemoteScope(title: string, location: string, description: string) {
   const normalized = location.replace(/\s+/g, " ").trim();
+  const bareRemote = /^(?:remote|anywhere)$/i.test(normalized);
+  const genericGlobal = /\b(global|worldwide)\b/i.test(normalized);
 
-  // Explicit region qualifiers in the role title override generic company-wide
-  // "Remote, Global" metadata. For example, "(AMER/APAC)" is not worldwide.
+  // Specific structured ATS locations are stronger evidence than a broad
+  // title qualifier such as "EMEA". Example: a title may say EMEA while the
+  // actual hiring locations are only UK, Poland, France and Germany.
+  if (normalized && !bareRemote && !genericGlobal) {
+    if (/\bemea\b/i.test(normalized)) return "emea" as const;
+    if (/\bafrica\b/i.test(normalized)) return "africa" as const;
+    if (/\b(?:amer|north america|united states|usa)\b|remote\s*[-,]?\s*us\b|,\s*us\b/i.test(normalized)) {
+      return "us-only" as const;
+    }
+    if (/\b(?:united kingdom|uk)\b|\blondon\b/i.test(normalized)) return "uk-only" as const;
+    if (/\b(?:eu|european union)\b/i.test(normalized)) return "eu-only" as const;
+
+    const explicit = classifyRemoteScope(normalized);
+    return explicit === "unknown" ? "country-restricted" as const : explicit;
+  }
+
+  // Broad title qualifiers can narrow only generic/bare location metadata.
   if (/\bemea\b/i.test(title)) return "emea" as const;
   if (/\b(?:amer|americas|apac|asia pacific|latam|europe)\b/i.test(title)) {
     return "country-restricted" as const;
@@ -24,21 +41,7 @@ function classifyAtsRemoteScope(title: string, location: string, description: st
   if (/\b(?:united states|usa|us-only|us only)\b/i.test(title)) return "us-only" as const;
   if (/\b(?:united kingdom|uk-only|uk only)\b/i.test(title)) return "uk-only" as const;
 
-  // Structured ATS location metadata is more trustworthy than generic
-  // "fully remote" benefit text inside a job description.
-  if (/\b(global|worldwide)\b/i.test(normalized)) return "global" as const;
-  if (/\bemea\b/i.test(normalized)) return "emea" as const;
-  if (/\bafrica\b/i.test(normalized)) return "africa" as const;
-  if (/\b(?:amer|north america|united states|usa)\b|remote\s*[-,]?\s*us\b|,\s*us\b/i.test(normalized)) {
-    return "us-only" as const;
-  }
-  if (/\b(?:united kingdom|uk)\b|\blondon\b/i.test(normalized)) return "uk-only" as const;
-  if (/\b(?:eu|european union)\b/i.test(normalized)) return "eu-only" as const;
-
-  if (normalized && !/^(?:remote|anywhere)$/i.test(normalized)) {
-    const explicit = classifyRemoteScope(normalized);
-    return explicit === "unknown" ? "country-restricted" as const : explicit;
-  }
+  if (genericGlobal) return "global" as const;
 
   // A bare "Remote" location is not proof of worldwide eligibility.
   const fromDescription = classifyRemoteScope(description);
