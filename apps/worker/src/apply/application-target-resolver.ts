@@ -163,11 +163,22 @@ export async function validateApplicationTarget(
     const jobSpecificAtsPath =
       /\/\d{5,}(?:\/|$)/.test(currentPath) ||
       /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(currentPath);
+    const currentUrl = httpUrl(page.url());
+    const currentHost = currentUrl?.hostname.toLowerCase().replace(/^www\./, "") ?? "";
+    const currentSegments = currentPath.split("/").filter(Boolean);
+    const ashbyCompanySegment = (currentSegments[0] ?? "").toLowerCase();
+    const trustedAshbyExactApplicationUrl =
+      /(^|\.)ashbyhq\.com$/i.test(currentHost) &&
+      /\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/application\/?$/i.test(currentPath) &&
+      expectedCompanyTokens.some((token) => ashbyCompanySegment.includes(token));
     const knownAtsExactFormFallback =
       isKnownApplicationHost(page.url()) &&
       companyMatched &&
       jobSpecificAtsPath &&
-      await hasApplicationForm(page);
+      (
+        trustedAshbyExactApplicationUrl ||
+        await hasApplicationForm(page)
+      );
     const recruitingText = `${pageTitle} ${body.slice(0, 8_000)}`;
     const genericRecruitingDestination =
       /talent community|join our pack|register your interest|general application|general talent/i.test(
