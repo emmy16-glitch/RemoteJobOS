@@ -2,12 +2,12 @@ import type { RemoteScope } from "./types.js";
 
 const patterns: Array<[RemoteScope, RegExp]> = [
   ["country-restricted", /remote(?:-arbeit)?\s*(?:\(|-|:)?\s*(?:nur|only)?\s*(?:in\s*)?(?:deutschland|germany|schweiz|switzerland|france|frankreich)\s*\)?|(?:deutschland|germany|schweiz|switzerland|france|frankreich)\s*(?:only)?\s*remote|einsatzland\s*:\s*(?:deutschland|germany|schweiz|switzerland|france|frankreich)|must be (?:located|based) in (?:germany|deutschland|switzerland|schweiz|france|frankreich)/i],
-  ["us-only", /\b(us|u\.s\.|united states)\s*(only|residents?|based|work authorization)|must be (?:located|based) in (?:the )?(?:us|united states)/i],
+  ["us-only", /\b(?:us|u\.s\.|united states)(?:\s*[-,()]?\s*)(?:only|residents?|based|work authorization)|must be (?:located|based) in (?:the )?(?:us|u\.s\.|united states)/i],
   ["eu-only", /\b(eu|european union)\s*(only|residents?|based)|must be (?:located|based) in (?:the )?eu\b/i],
   ["uk-only", /\b(?:uk|united kingdom)\s*(only|residents?|based)|must be (?:located|based) in (?:the )?uk\b/i],
   ["emea", /\bemea\b/i],
   ["africa", /\bafrica(?:n)?\s*(?:time zones?|residents?|based)?\b/i],
-  ["global", /\b(?:worldwide|work from anywhere|anywhere in the world|global remote|remote globally)\b/i]
+  ["global", /\b(?:worldwide|work from anywhere|anywhere in the world|global remote|remote globally|international ok|international applicants? (?:are )?(?:welcome|accepted)|open to international applicants?|international candidates? (?:are )?(?:welcome|accepted))\b/i]
 ];
 
 export function classifyRemoteScope(text: string): RemoteScope {
