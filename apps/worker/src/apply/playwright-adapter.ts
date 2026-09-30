@@ -119,6 +119,7 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
     status: number;
     method: string;
   };
+  private selectedTypeaheadKeys = new Set<string>();
 
   constructor(
     public readonly name: string,
@@ -495,6 +496,8 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
         const option = page.getByRole("option", { name: safeRegex(value) }).first();
         if (await option.count() && await option.isVisible().catch(() => false)) {
           await option.click();
+          this.selectedTypeaheadKeys.add(entry.field.key);
+          await page.waitForTimeout(150);
         }
       } else {
         await locator.fill(value);
@@ -573,6 +576,11 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
           } else {
             verifiedFieldCount += 1;
           }
+        } else if (
+          entry.field.kind === "typeahead" &&
+          this.selectedTypeaheadKeys.has(entry.field.key)
+        ) {
+          verifiedFieldCount += 1;
         } else {
           const actual = await locator.inputValue();
           const expectedNormalized = entry.field.kind === "tel"
@@ -839,5 +847,6 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
     this.page = undefined;
     this.browser = undefined;
     this.lastSubmitNetworkEvidence = undefined;
+    this.selectedTypeaheadKeys.clear();
   }
 }
