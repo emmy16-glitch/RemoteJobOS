@@ -66,8 +66,14 @@ type JobMatchAutomationRow = {
 };
 
 const NON_ACTIONABLE_HOSTS = [
+  // Discovery aggregators are useful for finding jobs, but their listing URLs
+  // are not verified employer application targets. Keep them out of unattended
+  // browser execution until discovery has persisted a direct employer/ATS URL.
   /(^|\.)remoteok\.com$/i,
   /(^|\.)remoteok\.io$/i,
+  /(^|\.)himalayas\.app$/i,
+  /(^|\.)remotive\.com$/i,
+  /(^|\.)arbeitnow\.(?:com|ch|co\.uk|fr)$/i,
   /(^|\.)producthunt\.com$/i
 ];
 

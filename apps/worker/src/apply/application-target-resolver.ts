@@ -221,6 +221,11 @@ const NON_APPLICATION_HOSTS = [
   /(^|\.)producthunt\.com$/i
 ];
 
+function isNonApplicationHost(url: string): boolean {
+  const host = applicationHost(url);
+  return NON_APPLICATION_HOSTS.some((pattern) => pattern.test(host));
+}
+
 function externalTargetScore(
   candidateUrl: string,
   label: string,
@@ -327,6 +332,9 @@ async function clickApplyLikeControl(page: Page): Promise<{ page: Page; moved: b
     if (href) {
       const target = httpUrl(new URL(href, before).toString());
       if (target) {
+        if (isNonApplicationHost(target.toString())) {
+          continue;
+        }
         await page.goto(target.toString(), {
           waitUntil: "domcontentloaded",
           timeout: 30_000
@@ -343,11 +351,20 @@ async function clickApplyLikeControl(page: Page): Promise<{ page: Page; moved: b
     if (popup) {
       await popup.waitForLoadState("domcontentloaded", { timeout: 15_000 }).catch(() => undefined);
       await popup.waitForTimeout(700);
+      if (isNonApplicationHost(popup.url())) {
+        await popup.close().catch(() => undefined);
+        continue;
+      }
       return { page: popup, moved: true };
     }
 
     await page.waitForLoadState("domcontentloaded", { timeout: 15_000 }).catch(() => undefined);
     await page.waitForTimeout(700);
+    if (isNonApplicationHost(page.url())) {
+      await page.goBack({ waitUntil: "domcontentloaded", timeout: 15_000 }).catch(() => undefined);
+      await page.waitForTimeout(400).catch(() => undefined);
+      continue;
+    }
     return { page, moved: page.url() !== before };
   }
 
