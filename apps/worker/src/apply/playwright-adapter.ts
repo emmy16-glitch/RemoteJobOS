@@ -43,8 +43,35 @@ function cssString(value: string): string {
 }
 
 function safeRegex(value: string): RegExp {
+  const escaped = value.replace(/[.*+?^$()[\]{}|\\]/g, "\\function safeRegex(value: string): RegExp {
   const escaped = value.replace(/[.*+?^$()[\]{}|\\]/g, "\\$&");
   return new RegExp(escaped, "i");
+}
+");
+  return new RegExp(escaped, "i");
+}
+
+function matchWords(value: string): string[] {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .split(/\s+/)
+    .filter((word) => word.length >= 3 && !/^(the|and|for|with|from|degree)$/.test(word));
+}
+
+function typeaheadMatchScore(expected: string, candidate: string): number {
+  const expectedWords = [...new Set(matchWords(expected))];
+  const candidateWords = [...new Set(matchWords(candidate))];
+  if (!expectedWords.length || !candidateWords.length) return 0;
+
+  const expectedFlat = expectedWords.join(" ");
+  const candidateFlat = candidateWords.join(" ");
+  if (expectedFlat === candidateFlat) return 1;
+  if (expectedFlat.includes(candidateFlat) || candidateFlat.includes(expectedFlat)) return 0.95;
+
+  const overlap = candidateWords.filter((word) => expectedWords.includes(word)).length;
+  if (overlap < 2) return 0;
+  return overlap / Math.min(expectedWords.length, candidateWords.length);
 }
 
 function fieldKind(raw: RawField): FieldKind {
@@ -120,6 +147,7 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
     method: string;
   };
   private selectedTypeaheadKeys = new Set<string>();
+  private omittedOptionalTypeaheadKeys = new Set<string>();
 
   constructor(
     public readonly name: string,
@@ -493,11 +521,41 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
       } else if (entry.field.kind === "typeahead") {
         await locator.fill(value);
         await page.waitForTimeout(350);
-        const option = page.getByRole("option", { name: safeRegex(value) }).first();
-        if (await option.count() && await option.isVisible().catch(() => false)) {
-          await option.click();
+
+        let selected = false;
+        const exactOption = page.getByRole("option", { name: safeRegex(value) }).first();
+        if (await exactOption.count() && await exactOption.isVisible().catch(() => false)) {
+          await exactOption.click();
+          selected = true;
+        } else {
+          const options = page.getByRole("option");
+          const count = await options.count();
+          let bestIndex = -1;
+          let bestScore = 0;
+
+          for (let index = 0; index < count; index += 1) {
+            const candidate = options.nth(index);
+            if (!(await candidate.isVisible().catch(() => false))) continue;
+            const label = compact(await candidate.textContent().catch(() => ""));
+            const score = typeaheadMatchScore(value, label);
+            if (score > bestScore) {
+              bestScore = score;
+              bestIndex = index;
+            }
+          }
+
+          if (bestIndex >= 0 && bestScore >= 0.66) {
+            await options.nth(bestIndex).click();
+            selected = true;
+          }
+        }
+
+        if (selected) {
           this.selectedTypeaheadKeys.add(entry.field.key);
           await page.waitForTimeout(150);
+        } else if (!entry.field.required) {
+          await locator.fill("");
+          this.omittedOptionalTypeaheadKeys.add(entry.field.key);
         }
       } else {
         await locator.fill(value);
@@ -579,6 +637,12 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
         } else if (
           entry.field.kind === "typeahead" &&
           this.selectedTypeaheadKeys.has(entry.field.key)
+        ) {
+          verifiedFieldCount += 1;
+        } else if (
+          entry.field.kind === "typeahead" &&
+          !entry.field.required &&
+          this.omittedOptionalTypeaheadKeys.has(entry.field.key)
         ) {
           verifiedFieldCount += 1;
         } else {
@@ -848,5 +912,6 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
     this.browser = undefined;
     this.lastSubmitNetworkEvidence = undefined;
     this.selectedTypeaheadKeys.clear();
+    this.omittedOptionalTypeaheadKeys.clear();
   }
 }
