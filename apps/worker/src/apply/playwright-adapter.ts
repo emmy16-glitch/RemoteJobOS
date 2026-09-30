@@ -229,6 +229,29 @@ export class PlaywrightAtsAdapter implements ApplicationAdapter {
         .waitFor({ state: "attached", timeout: 12_000 })
         .catch(() => undefined);
       await page.waitForTimeout(1_000);
+
+      if (
+        await this.controls(page).count() < 2 &&
+        /\/application\/?(?:[?#].*)?$/i.test(page.url())
+      ) {
+        // Some Ashby application routes render an empty SPA shell when opened
+        // directly in a fresh browser. Load the canonical job page first and
+        // follow its Apply control so Ashby establishes the expected client state.
+        const jobPageUrl = page.url().replace(/\/application\/?(?:[?#].*)?$/i, "");
+        await page.goto(jobPageUrl, {
+          waitUntil: "domcontentloaded",
+          timeout: 30_000
+        });
+        await page.waitForTimeout(750);
+        page = await this.followApplyLink(page);
+        this.page = page;
+        await page
+          .locator("#_systemfield_name, .ashby-application-form-field-entry, input, textarea")
+          .first()
+          .waitFor({ state: "attached", timeout: 12_000 })
+          .catch(() => undefined);
+        await page.waitForTimeout(750);
+      }
     }
 
     if (this.preferApplyLink || await this.controls(page).count() < 2) {
