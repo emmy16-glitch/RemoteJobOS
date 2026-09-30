@@ -39,25 +39,44 @@ async function supabaseGet<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+async function supabaseGetAll<T>(path: string, pageSize = 1000): Promise<T[]> {
+  const rows: T[] = [];
+  let offset = 0;
+
+  while (true) {
+    const separator = path.includes("?") ? "&" : "?";
+    const page = await supabaseGet<T[]>(
+      `${path}${separator}limit=${pageSize}&offset=${offset}`
+    );
+    rows.push(...page);
+    if (page.length < pageSize) return rows;
+    offset += page.length;
+  }
+}
+
 async function persistMatches(rows: Array<Record<string, unknown>>): Promise<void> {
   if (!rows.length) return;
 
-  const response = await fetch(
-    `${config.supabaseUrl}/rest/v1/job_matches?on_conflict=job_id,profile_id`,
-    {
-      method: "POST",
-      headers: {
-        apikey: config.supabaseServiceRoleKey,
-        authorization: `Bearer ${config.supabaseServiceRoleKey}`,
-        "content-type": "application/json",
-        prefer: "resolution=merge-duplicates,return=minimal"
-      },
-      body: JSON.stringify(rows)
-    }
-  );
+  const chunkSize = 500;
+  for (let index = 0; index < rows.length; index += chunkSize) {
+    const chunk = rows.slice(index, index + chunkSize);
+    const response = await fetch(
+      `${config.supabaseUrl}/rest/v1/job_matches?on_conflict=job_id,profile_id`,
+      {
+        method: "POST",
+        headers: {
+          apikey: config.supabaseServiceRoleKey,
+          authorization: `Bearer ${config.supabaseServiceRoleKey}`,
+          "content-type": "application/json",
+          prefer: "resolution=merge-duplicates,return=minimal"
+        },
+        body: JSON.stringify(chunk)
+      }
+    );
 
-  if (!response.ok) {
-    throw new Error(`Match persistence failed: ${response.status} ${await response.text()}`);
+    if (!response.ok) {
+      throw new Error(`Match persistence failed: ${response.status} ${await response.text()}`);
+    }
   }
 }
 
@@ -75,8 +94,8 @@ export async function matchJobs() {
     return 0;
   }
 
-  const jobs = await supabaseGet<JobRow[]>(
-    "jobs?select=id,source,external_id,title,company,description,apply_url,source_url,posted_at,salary_text,location_text,remote,remote_scope,role_family,tags&remote=eq.true&order=discovered_at.desc&limit=500"
+  const jobs = await supabaseGetAll<JobRow>(
+    "jobs?select=id,source,external_id,title,company,description,apply_url,source_url,posted_at,salary_text,location_text,remote,remote_scope,role_family,tags&remote=eq.true&order=discovered_at.desc"
   );
 
   let total = 0;
