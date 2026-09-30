@@ -58,6 +58,21 @@ async function getJson<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+async function getAllJson<T>(path: string, pageSize = 1000): Promise<T[]> {
+  const rows: T[] = [];
+  let offset = 0;
+
+  while (true) {
+    const separator = path.includes("?") ? "&" : "?";
+    const page = await getJson<T[]>(
+      `${path}${separator}limit=${pageSize}&offset=${offset}`
+    );
+    rows.push(...page);
+    if (page.length < pageSize) return rows;
+    offset += page.length;
+  }
+}
+
 function stableFingerprint(profile: ProfileRow, job: JobRow): string {
   const input = JSON.stringify({
     profileUpdatedAt: profile.updated_at,
@@ -86,12 +101,12 @@ async function prepareProfileCvPlans(profile: ProfileRow): Promise<number> {
     return 0;
   }
 
-  const matches = await getJson<MatchRow[]>(
-    `job_matches?select=job_id&profile_id=eq.${encodeURIComponent(profile.id)}&decision=eq.strong-match&order=created_at.desc&limit=1000`
+  const matches = await getAllJson<MatchRow>(
+    `job_matches?select=job_id&profile_id=eq.${encodeURIComponent(profile.id)}&decision=eq.strong-match&order=created_at.desc`
   );
   if (!matches.length) return 0;
 
-  const existing = await getJson<ExistingCvRow[]>(
+  const existing = await getAllJson<ExistingCvRow>(
     `cv_versions?select=job_id,version,content&profile_id=eq.${encodeURIComponent(profile.id)}&family=not.is.null`
   );
   const existingByJob = new Map<string, ExistingCvRow[]>();
@@ -103,9 +118,16 @@ async function prepareProfileCvPlans(profile: ProfileRow): Promise<number> {
   }
 
   const jobIds = [...new Set(matches.map((row) => row.job_id))];
-  const jobs = await getJson<JobRow[]>(
-    `jobs?select=id,source,external_id,title,company,description,apply_url,source_url,posted_at,salary_text,location_text,remote,remote_scope,role_family,tags,last_seen_at&id=in.(${jobIds.join(",")})`
-  );
+  const jobs: JobRow[] = [];
+  const jobChunkSize = 100;
+  for (let index = 0; index < jobIds.length; index += jobChunkSize) {
+    const chunk = jobIds.slice(index, index + jobChunkSize);
+    jobs.push(
+      ...(await getJson<JobRow[]>(
+        `jobs?select=id,source,external_id,title,company,description,apply_url,source_url,posted_at,salary_text,location_text,remote,remote_scope,role_family,tags,last_seen_at&id=in.(${chunk.join(",")})`
+      ))
+    );
+  }
 
   const rows = jobs.flatMap((row) => {
     const inputFingerprint = stableFingerprint(profile, row);
