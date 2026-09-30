@@ -11,7 +11,7 @@ export async function loadRegisteredAtsSources(): Promise<JobSource[]> {
   if (!hasSupabase()) return [];
 
   const response = await fetch(
-    `${config.supabaseUrl}/rest/v1/job_source_registry?select=provider,board_key&enabled=eq.true&order=provider.asc,board_key.asc`,
+    `${config.supabaseUrl}/rest/v1/job_source_registry?select=provider,board_key&enabled=eq.true&order=provider.asc,board_key.asc&limit=1000`,
     {
       headers: {
         apikey: config.supabaseServiceRoleKey,
