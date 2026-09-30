@@ -558,3 +558,19 @@ test("does not reuse email or phone aliases inside compound prompts", async () =
 
   assert.equal(plan[0]?.action.type, "skip");
 });
+
+
+test("does not treat employment restriction questions as current employer fields", async () => {
+  const { buildDeterministicFillPlan } = await import("../src/planner.ts");
+  const plan = buildDeterministicFillPlan(
+    [{
+      key: "restriction",
+      label: "Are you subject to any employment agreements and/or post-employment restrictions with your current employer or a past employer?",
+      kind: "typeahead" as const,
+      required: true
+    }],
+    { "current employer": "Digi02 Tech Systems" }
+  );
+
+  assert.equal(plan[0]?.action.type, "human-review");
+});
