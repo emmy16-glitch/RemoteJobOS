@@ -43,11 +43,7 @@ function cssString(value: string): string {
 }
 
 function safeRegex(value: string): RegExp {
-  const escaped = value.replace(/[.*+?^$()[\]{}|\\]/g, "\\function safeRegex(value: string): RegExp {
   const escaped = value.replace(/[.*+?^$()[\]{}|\\]/g, "\\$&");
-  return new RegExp(escaped, "i");
-}
-");
   return new RegExp(escaped, "i");
 }
 
