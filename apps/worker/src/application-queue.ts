@@ -112,6 +112,8 @@ type ApplicationRow = {
   status: string;
   autonomy_mode?: string;
   next_action?: string | null;
+  submission_fenced_at?: string | null;
+  submitted_at?: string | null;
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -899,7 +901,7 @@ async function syncProfileApplications(profile: ProfileRow): Promise<{
   }
 
   const applications = await requestAll<ApplicationRow>(
-    `applications?select=id,job_id,profile_id,cv_version_id,status,autonomy_mode,next_action&profile_id=eq.${encodeURIComponent(profile.id)}`
+    `applications?select=id,job_id,profile_id,cv_version_id,status,autonomy_mode,next_action,submission_fenced_at,submitted_at&profile_id=eq.${encodeURIComponent(profile.id)}`
   );
 
   const jobs = await requestAll<JobAutomationRow>(
@@ -935,6 +937,8 @@ async function syncProfileApplications(profile: ProfileRow): Promise<{
         "Discovery-only: no validated employer application URL is available yet.";
     } else if (
       eligible &&
+      !application.submission_fenced_at &&
+      !application.submitted_at &&
       (application.status === "shortlisted" || legacyRetryableReview)
     ) {
       await updateApplication(application.id, {
@@ -1001,6 +1005,8 @@ async function syncProfileApplications(profile: ProfileRow): Promise<{
     (application) =>
       application.status === "cv-prepared" &&
       Boolean(application.cv_version_id) &&
+      !application.submission_fenced_at &&
+      !application.submitted_at &&
       autoApplyEligible(jobsById.get(application.job_id), matchesByJob.get(application.job_id))
   );
 
