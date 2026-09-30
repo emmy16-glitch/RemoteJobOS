@@ -136,6 +136,21 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (body ? JSON.parse(body) : undefined) as T;
 }
 
+async function requestAll<T>(path: string, pageSize = 1000): Promise<T[]> {
+  const rows: T[] = [];
+  let offset = 0;
+
+  while (true) {
+    const separator = path.includes("?") ? "&" : "?";
+    const page = await request<T[]>(
+      `${path}${separator}limit=${pageSize}&offset=${offset}`
+    );
+    rows.push(...page);
+    if (page.length < pageSize) return rows;
+    offset += page.length;
+  }
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -872,8 +887,8 @@ async function syncProfileApplications(profile: ProfileRow): Promise<{
   created: number;
   queued: number;
 }> {
-  const cvs = await request<CvRow[]>(
-    `cv_versions?select=id,job_id,created_at&profile_id=eq.${encodeURIComponent(profile.id)}&job_id=not.is.null&order=created_at.desc&limit=500`
+  const cvs = await requestAll<CvRow>(
+    `cv_versions?select=id,job_id,created_at&profile_id=eq.${encodeURIComponent(profile.id)}&job_id=not.is.null&order=created_at.desc`
   );
 
   const newestCvByJob = new Map<string, CvRow>();
@@ -883,17 +898,17 @@ async function syncProfileApplications(profile: ProfileRow): Promise<{
     }
   }
 
-  const applications = await request<ApplicationRow[]>(
-    `applications?select=id,job_id,profile_id,cv_version_id,status,autonomy_mode,next_action&profile_id=eq.${encodeURIComponent(profile.id)}&limit=1000`
+  const applications = await requestAll<ApplicationRow>(
+    `applications?select=id,job_id,profile_id,cv_version_id,status,autonomy_mode,next_action&profile_id=eq.${encodeURIComponent(profile.id)}`
   );
 
-  const jobs = await request<JobAutomationRow[]>(
-    "jobs?select=id,source,company,title,role_family,apply_url,source_url&limit=1000"
+  const jobs = await requestAll<JobAutomationRow>(
+    "jobs?select=id,source,company,title,role_family,apply_url,source_url"
   );
   const jobsById = new Map(jobs.map((job) => [job.id, job]));
 
-  const matches = await request<JobMatchAutomationRow[]>(
-    `job_matches?select=job_id,decision,score&profile_id=eq.${encodeURIComponent(profile.id)}&limit=2000`
+  const matches = await requestAll<JobMatchAutomationRow>(
+    `job_matches?select=job_id,decision,score&profile_id=eq.${encodeURIComponent(profile.id)}`
   );
   const matchesByJob = new Map(matches.map((match) => [match.job_id, match]));
 
