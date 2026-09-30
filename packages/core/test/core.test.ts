@@ -19,6 +19,20 @@ test("classifies US-only restrictions before global wording", () => {
   );
 });
 
+test("classifies international applicants as global", () => {
+  assert.equal(
+    classifyRemoteScope("Remote (International OK). We welcome international applicants."),
+    "global"
+  );
+});
+
+test("classifies hyphenated US-based wording as US-only", () => {
+  assert.equal(
+    classifyRemoteScope("Work Environment: Fully remote, U.S.-based."),
+    "us-only"
+  );
+});
+
 test("classifies broad technical role families", () => {
   assert.equal(classifyRoleFamily("SOC Security Analyst"), "cybersecurity");
   assert.equal(classifyRoleFamily("Business Intelligence Data Analyst"), "data");
