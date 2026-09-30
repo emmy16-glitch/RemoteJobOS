@@ -8,7 +8,7 @@ on:
       max_tasks:
         description: "Maximum application reviews for this run"
         required: false
-        default: "10"
+        default: "20"
         type: string
   workflow_run:
     workflows: ["Match remote jobs"]
@@ -71,8 +71,8 @@ jobs:
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      REMOTEJOBOS_MAX_REVIEW_TASKS: ${{ inputs.max_tasks || '10' }}
-      REMOTEJOBOS_MAX_AUTO_SUBMIT_TASKS: ${{ inputs.max_tasks || '10' }}
+      REMOTEJOBOS_MAX_REVIEW_TASKS: ${{ inputs.max_tasks || '20' }}
+      REMOTEJOBOS_MAX_AUTO_SUBMIT_TASKS: ${{ inputs.max_tasks || '20' }}
       REMOTEJOBOS_HARD_BATCH_CAP: "100"
       REMOTEJOBOS_WORKER_SHARD: ${{ matrix.shard }}
       REMOTEJOBOS_ALLOW_SUBMIT: "false"
@@ -95,7 +95,7 @@ jobs:
       - name: Submit only policy-authorized verified applications
         env:
           REMOTEJOBOS_ALLOW_SUBMIT: "true"
-        run: npm run process-auto-submissions --workspace @remotejobos/worker -- "${{ inputs.max_tasks || '10' }}"
+        run: npm run process-auto-submissions --workspace @remotejobos/worker -- "${{ inputs.max_tasks || '20' }}"
       - name: Upload non-sensitive browser evidence
         if: always()
         uses: actions/upload-artifact@v4
