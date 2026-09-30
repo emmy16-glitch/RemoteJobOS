@@ -26,7 +26,7 @@ const aliases: Array<{ pattern: RegExp; keys: string[] }> = [
   { pattern: /state|province|region/i, keys: ["state", "province", "region"] },
   { pattern: /postal|zip/i, keys: ["postal code", "postcode", "zip code", "zip"] },
   { pattern: /country|\bland\b/i, keys: ["country", "country of residence"] },
-  { pattern: /current company|current employer/i, keys: ["current company", "current employer"] },
+  { pattern: /^\s*(?:current company|current employer)(?:\s*\([^)]*\))?\s*\*?\s*$/i, keys: ["current company", "current employer"] },
   { pattern: /current title|current role|job title/i, keys: ["current title", "current role", "job title"] },
   { pattern: /how did you hear about us|where did you hear about us|how.*find.*us/i, keys: ["job source", "source"] },
   { pattern: /privacy notice|privacy policy/i, keys: ["please confirm that you have read and agree to canonical s recruitment privacy notice and privacy policy"] },
