@@ -159,6 +159,15 @@ export async function validateApplicationTarget(
     const companyMatched = matchedCompanyTokens.length > 0;
     const externalExactTitleFallback =
       !isAggregatorHost(page.url()) && titleMatched;
+    const currentPath = httpUrl(page.url())?.pathname ?? "";
+    const jobSpecificAtsPath =
+      /\/\d{5,}(?:\/|$)/.test(currentPath) ||
+      /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(currentPath);
+    const knownAtsExactFormFallback =
+      isKnownApplicationHost(page.url()) &&
+      companyMatched &&
+      jobSpecificAtsPath &&
+      await hasApplicationForm(page);
     const recruitingText = `${pageTitle} ${body.slice(0, 8_000)}`;
     const genericRecruitingDestination =
       /talent community|join our pack|register your interest|general application|general talent/i.test(
@@ -172,7 +181,11 @@ export async function validateApplicationTarget(
       matchedTitleTokens.length === 0;
 
     const ok =
-      (companyMatched && titleMatched || externalExactTitleFallback) &&
+      (
+        companyMatched && titleMatched ||
+        externalExactTitleFallback ||
+        knownAtsExactFormFallback
+      ) &&
       !challengePage &&
       !unresolvedAggregator &&
       !genericRecruitingDestination &&
@@ -188,7 +201,7 @@ export async function validateApplicationTarget(
             ? "Resolved page is still an aggregator listing and no application form is available"
             : genericRecruitingDestination
               ? "Resolved page is a generic talent-community/general-interest form, not the exact job application"
-              : !titleMatched
+              : !titleMatched && !knownAtsExactFormFallback
                 ? "Resolved page does not identify the expected job title strongly enough"
                 : titleMissingFromGenericLanding
                   ? "Resolved page is only a generic careers landing page and does not identify the expected job"
