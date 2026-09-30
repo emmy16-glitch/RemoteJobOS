@@ -255,15 +255,25 @@ async function verifyWithSalvage(
 async function applicationStillAutoApplyEligible(applicationId: string): Promise<{
   allowed: boolean;
   reason: string;
+  alreadyComplete?: boolean;
 }> {
   const rows = await request<Array<{
     job_id: string;
     profile_id: string | null;
+    submitted_at: string | null;
+    confirmation_verified_at: string | null;
   }>>(
-    `applications?select=job_id,profile_id&id=eq.${encodeURIComponent(applicationId)}&limit=1`
+    `applications?select=job_id,profile_id,submitted_at,confirmation_verified_at&id=eq.${encodeURIComponent(applicationId)}&limit=1`
   );
   const application = rows[0];
   if (!application) return { allowed: false, reason: "Application record no longer exists" };
+  if (application.submitted_at || application.confirmation_verified_at) {
+    return {
+      allowed: false,
+      reason: "Application is already submitted",
+      alreadyComplete: true
+    };
+  }
 
   const jobs = await request<JobAutomationRow[]>(
     `jobs?select=id,source,company,title,role_family,apply_url,source_url&id=eq.${encodeURIComponent(application.job_id)}&limit=1`
@@ -308,6 +318,10 @@ async function quarantineIneligibleApplication(
 async function processReviewTask(task: ClaimedTask, applicationId: string): Promise<void> {
   const eligibility = await applicationStillAutoApplyEligible(applicationId);
   if (!eligibility.allowed) {
+    if (eligibility.alreadyComplete) {
+      await finishTask(task, true);
+      return;
+    }
     await quarantineIneligibleApplication(task, applicationId, eligibility.reason);
     return;
   }
@@ -554,6 +568,10 @@ async function processSubmitTask(task: ClaimedTask, applicationId: string): Prom
 
   const eligibility = await applicationStillAutoApplyEligible(applicationId);
   if (!eligibility.allowed) {
+    if (eligibility.alreadyComplete) {
+      await finishTask(task, true);
+      return;
+    }
     await request(
       `agent_approvals?id=eq.${encodeURIComponent(approvalId)}&status=eq.approved`,
       {
