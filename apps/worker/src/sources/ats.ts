@@ -43,9 +43,10 @@ function classifyAtsRemoteScope(title: string, location: string, description: st
 
   if (genericGlobal) return "global" as const;
 
-  // A bare "Remote" location is not proof of worldwide eligibility.
+  // A bare "Remote" location is not proof of worldwide eligibility, but an
+  // explicit scope in the job description is authoritative enough to classify.
   const fromDescription = classifyRemoteScope(description);
-  return fromDescription === "global" ? "global" as const : "unknown" as const;
+  return fromDescription === "unknown" ? "unknown" as const : fromDescription;
 }
 
 export function greenhouseSource(boardKey: string): JobSource {
