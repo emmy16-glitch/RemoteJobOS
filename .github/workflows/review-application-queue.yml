@@ -29,7 +29,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: remotejobos-review-queue
+  group: remotejobos-review-queue-v2
   # Review runs are dry-run/idempotent. A newer commit must pre-empt stale
   # workers so fixes do not sit queued behind old code for many minutes.
   cancel-in-progress: true
