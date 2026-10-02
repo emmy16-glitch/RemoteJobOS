@@ -10,3 +10,4 @@ export * from "./email.js";
 export * from "./gmail.js";
 export * from "./harness.js";
 export * from "./salary.js";
+export * from "./job-target.js";
