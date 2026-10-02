@@ -108,10 +108,12 @@ async function requestAll<T>(path: string, pageSize = 1000): Promise<T[]> {
 
 function sourceBoard(source: string): { provider: AtsProvider; boardKey: string } | null {
   const match = source.match(/^(greenhouse|lever|ashby):(.+)$/i);
-  if (!match) return null;
+  const provider = match?.[1];
+  const boardKey = match?.[2];
+  if (!provider || !boardKey) return null;
   return {
-    provider: match[1].toLowerCase() as AtsProvider,
-    boardKey: match[2]
+    provider: provider.toLowerCase() as AtsProvider,
+    boardKey
   };
 }
 
@@ -222,9 +224,12 @@ function anchorsFromHtml(html: string, baseUrl: string): Array<{ label: string; 
   const anchors: Array<{ label: string; url: string }> = [];
   const pattern = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
   for (const match of html.matchAll(pattern)) {
+    const href = match[1];
+    const rawLabel = match[2] ?? "";
+    if (!href) continue;
     try {
-      const url = new URL(match[1], baseUrl).toString();
-      anchors.push({ label: stripHtml(match[2]), url });
+      const url = new URL(href, baseUrl).toString();
+      anchors.push({ label: stripHtml(rawLabel), url });
     } catch {
       // Ignore malformed anchors.
     }
@@ -406,6 +411,7 @@ export async function enrichApplicationTargets(): Promise<{
 
   for (const companyJobs of [...byCompany.values()].slice(0, companyLimit)) {
     const first = companyJobs[0];
+    if (!first) continue;
     const keys = [
       ...new Set(
         companyJobs.flatMap((job) =>
