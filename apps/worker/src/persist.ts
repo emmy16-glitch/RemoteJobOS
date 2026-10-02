@@ -26,22 +26,26 @@ function isLowQualityApplicationTarget(value: string | undefined): boolean {
   return (
     !host ||
     /(^|\.)remoteok\.(?:com|io)$/i.test(host) ||
+    /(^|\.)himalayas\.app$/i.test(host) ||
+    /(^|\.)remotive\.com$/i.test(host) ||
+    /(^|\.)arbeitnow\.(?:com|ch|co\.uk|fr)$/i.test(host) ||
     /(^|\.)producthunt\.com$/i.test(host)
   );
 }
 
-async function existingRemoteOkTargets(
+async function existingEnrichedTargets(
   jobs: NormalizedJob[]
 ): Promise<Map<string, string>> {
-  const ids = jobs
-    .filter((job) => job.source.toLowerCase() === "remoteok")
-    .map((job) => job.externalId)
-    .filter(Boolean);
+  const wanted = new Set(
+    jobs
+      .filter((job) => isLowQualityApplicationTarget(job.applyUrl))
+      .map((job) => `${job.source.toLowerCase()}:${job.externalId}`)
+  );
 
-  if (!ids.length) return new Map();
+  if (!wanted.size) return new Map();
 
   const response = await fetch(
-    `${config.supabaseUrl}/rest/v1/jobs?select=source,external_id,apply_url&source=eq.remoteok&limit=1000`,
+    `${config.supabaseUrl}/rest/v1/jobs?select=source,external_id,apply_url&limit=5000`,
     {
       headers: {
         apikey: config.supabaseServiceRoleKey,
@@ -52,21 +56,22 @@ async function existingRemoteOkTargets(
 
   if (!response.ok) {
     console.warn(
-      `[persist] could not load existing RemoteOK targets: ${response.status} ${await response.text()}`
+      `[persist] could not load existing enriched targets: ${response.status} ${await response.text()}`
     );
     return new Map();
   }
 
-  const wanted = new Set(ids);
   const rows = await response.json() as ExistingJobTarget[];
   return new Map(
     rows
-      .filter(
-        (row) =>
-          wanted.has(row.external_id) &&
-          !isLowQualityApplicationTarget(row.apply_url)
-      )
-      .map((row) => [row.external_id, row.apply_url])
+      .filter((row) => {
+        const key = `${row.source.toLowerCase()}:${row.external_id}`;
+        return wanted.has(key) && !isLowQualityApplicationTarget(row.apply_url);
+      })
+      .map((row) => [
+        `${row.source.toLowerCase()}:${row.external_id}`,
+        row.apply_url
+      ])
   );
 }
 
@@ -76,14 +81,14 @@ export async function persistJobs(jobs: NormalizedJob[]) {
     return;
   }
 
-  const preservedRemoteOkTargets = await existingRemoteOkTargets(jobs);
+  const preservedEnrichedTargets = await existingEnrichedTargets(jobs);
 
   const rows = jobs.map((job) => {
-    const preserved =
-      job.source.toLowerCase() === "remoteok" &&
-      isLowQualityApplicationTarget(job.applyUrl)
-        ? preservedRemoteOkTargets.get(job.externalId)
-        : undefined;
+    const preserved = isLowQualityApplicationTarget(job.applyUrl)
+      ? preservedEnrichedTargets.get(
+          `${job.source.toLowerCase()}:${job.externalId}`
+        )
+      : undefined;
 
     const effectiveApplyUrl = preserved ?? job.applyUrl;
 
