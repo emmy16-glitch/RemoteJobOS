@@ -1061,13 +1061,76 @@ async function syncProfileApplications(profile: ProfileRow): Promise<{
 }
 
 
-async function collapseDuplicatePendingReviewTasks(): Promise<number> {
+async function recoverExpiredReviewClaims(): Promise<number> {
+  const now = new Date().toISOString();
+  const rows = await request<Array<{
+    id: string;
+    attempts: number;
+    max_attempts: number;
+  }>>(
+    `agent_tasks?select=id,attempts,max_attempts&task_type=eq.application-review&status=eq.claimed&lease_expires_at=lt.${encodeURIComponent(now)}&limit=2000`
+  );
+
+  const retryableIds = rows
+    .filter((row) => row.attempts < row.max_attempts)
+    .map((row) => row.id);
+  const exhaustedIds = rows
+    .filter((row) => row.attempts >= row.max_attempts)
+    .map((row) => row.id);
+
+  const patchIds = async (
+    ids: string[],
+    values: Record<string, unknown>
+  ): Promise<void> => {
+    const chunkSize = 100;
+    for (let index = 0; index < ids.length; index += chunkSize) {
+      const chunk = ids.slice(index, index + chunkSize);
+      await request(
+        `agent_tasks?id=in.(${chunk.join(",")})`,
+        {
+          method: "PATCH",
+          body: JSON.stringify(values)
+        }
+      );
+    }
+  };
+
+  await patchIds(retryableIds, {
+    status: "failed",
+    available_at: now,
+    last_error: "Recovered expired worker lease; safe retry allowed.",
+    worker_id: null,
+    lease_token: null,
+    lease_expires_at: null,
+    claimed_at: null
+  });
+
+  await patchIds(exhaustedIds, {
+    status: "blocked",
+    completed_at: now,
+    last_error: "Expired worker lease exhausted the task retry limit.",
+    worker_id: null,
+    lease_token: null,
+    lease_expires_at: null,
+    claimed_at: null
+  });
+
+  if (rows.length) {
+    console.log(
+      `[application-queue] recovered ${retryableIds.length} expired review lease(s); blocked ${exhaustedIds.length} exhausted lease(s)`
+    );
+  }
+
+  return rows.length;
+}
+
+async function collapseDuplicateReviewTasks(): Promise<number> {
   const rows = await request<Array<{
     id: string;
     payload: Record<string, unknown>;
     created_at: string;
   }>>(
-    "agent_tasks?select=id,payload,created_at&task_type=eq.application-review&status=eq.pending&order=created_at.desc&limit=2000"
+    "agent_tasks?select=id,payload,created_at&task_type=eq.application-review&status=in.(pending,failed)&order=created_at.desc&limit=2000"
   );
 
   const seenApplications = new Set<string>();
@@ -1129,6 +1192,8 @@ export async function syncApplications(): Promise<number> {
     return 0;
   }
 
+  const recovered = await recoverExpiredReviewClaims();
+
   let created = 0;
   let queued = 0;
 
@@ -1138,10 +1203,10 @@ export async function syncApplications(): Promise<number> {
     queued += result.queued;
   }
 
-  const deduplicated = await collapseDuplicatePendingReviewTasks();
+  const deduplicated = await collapseDuplicateReviewTasks();
 
   console.log(
-    `[application-queue] profiles=${profiles.length} created=${created} queued=${queued} deduplicated=${deduplicated}`
+    `[application-queue] profiles=${profiles.length} created=${created} queued=${queued} recovered=${recovered} deduplicated=${deduplicated}`
   );
 
   return created + queued;
