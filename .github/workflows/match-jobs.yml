@@ -2,7 +2,7 @@ name: Match remote jobs
 
 on:
   schedule:
-    - cron: "59 * * * *"
+    - cron: "10,25,40,55 * * * *"
   workflow_dispatch:
   workflow_run:
     workflows: ["Discover remote jobs"]
