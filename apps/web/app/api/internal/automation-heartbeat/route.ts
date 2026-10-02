@@ -20,14 +20,37 @@ function state(): AutomationState {
   return globalState.__remoteJobOsAutomation;
 }
 
-function authorized(request: Request): boolean {
-  const secret = process.env.REMOTEJOBOS_HEARTBEAT_TOKEN;
-  if (!secret) return false;
-  return request.headers.get("authorization") === "Bearer " + secret;
+async function authorized(request: Request): Promise<boolean> {
+  const header = request.headers.get("authorization") ?? "";
+  const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+  const supabaseUrl = process.env.SUPABASE_URL ?? "";
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+  if (!token || !supabaseUrl || !serviceRoleKey) return false;
+
+  try {
+    const response = await fetch(
+      supabaseUrl + "/rest/v1/rpc/validate_automation_heartbeat",
+      {
+        method: "POST",
+        headers: {
+          apikey: serviceRoleKey,
+          authorization: "Bearer " + serviceRoleKey,
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({ p_token: token }),
+        cache: "no-store"
+      }
+    );
+
+    if (!response.ok) return false;
+    return (await response.json()) === true;
+  } catch {
+    return false;
+  }
 }
 
 export async function POST(request: Request) {
-  if (!authorized(request)) {
+  if (!(await authorized(request))) {
     return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
 
@@ -84,7 +107,7 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
-  if (!authorized(request)) {
+  if (!(await authorized(request))) {
     return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
 
