@@ -624,3 +624,13 @@ test("derives ATS board candidates from company and Himalayas provenance", async
   assert.ok(searchAtlas.includes("search-atlas"));
   assert.ok(searchAtlas.includes("searchatlas"));
 });
+
+
+test("reuses verified email for confirmation fields", async () => {
+  const { buildDeterministicFillPlan } = await import("../src/planner.ts");
+  const plan = buildDeterministicFillPlan(
+    [{ key: "confirm-email", label: "Confirm your email", kind: "email" as const, required: true }],
+    { email: "candidate@example.com" }
+  );
+  assert.deepEqual(plan[0]?.action, { type: "fill", value: "candidate@example.com" });
+});
