@@ -82,13 +82,11 @@ function stableFingerprint(profile: ProfileRow, job: JobRow): string {
       title: job.title,
       company: job.company,
       description: job.description,
-      applyUrl: job.apply_url,
       salaryText: job.salary_text ?? null,
       locationText: job.location_text ?? null,
       remoteScope: job.remote_scope,
       roleFamily: job.role_family,
-      tags: job.tags ?? [],
-      lastSeenAt: job.last_seen_at
+      tags: job.tags ?? []
     }
   });
   return createHash("sha256").update(input).digest("hex");
@@ -112,11 +110,29 @@ async function prepareProfileCvPlans(profile: ProfileRow): Promise<number> {
   const cvChunkSize = 100;
   for (let index = 0; index < jobIds.length; index += cvChunkSize) {
     const chunk = jobIds.slice(index, index + cvChunkSize);
-    existing.push(
-      ...(await getJson<ExistingCvRow[]>(
-        `cv_versions?select=job_id,version,content&profile_id=eq.${encodeURIComponent(profile.id)}&family=not.is.null&job_id=in.(${chunk.join(",")})`
-      ))
+    const response = await fetch(
+      `${config.supabaseUrl}/rest/v1/rpc/latest_cv_versions`,
+      {
+        method: "POST",
+        headers: {
+          apikey: config.supabaseServiceRoleKey,
+          authorization: `Bearer ${config.supabaseServiceRoleKey}`,
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          p_profile_id: profile.id,
+          p_job_ids: chunk
+        })
+      }
     );
+
+    if (!response.ok) {
+      throw new Error(
+        `Latest CV lookup failed: ${response.status} ${await response.text()}`
+      );
+    }
+
+    existing.push(...await response.json() as ExistingCvRow[]);
   }
 
   const existingByJob = new Map<string, ExistingCvRow[]>();
