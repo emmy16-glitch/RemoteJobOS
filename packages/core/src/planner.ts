@@ -15,7 +15,7 @@ const aliases: Array<{ pattern: RegExp; keys: string[] }> = [
   { pattern: /\blast\s*name\b|\bsurname\b|\bfamily\s*name\b|\bnachname\b/i, keys: ["last name", "lastname", "last_name", "surname", "family name", "nachname"] },
   { pattern: /^name$/i, keys: ["full name", "fullname", "full_name"] },
   { pattern: /\bfull\s*name\b|\blegal\s*name\b/i, keys: ["full name", "fullname", "full_name"] },
-  { pattern: /^\s*e-?mail(?:\s+address)?(?:\s*\([^)]*\))?\s*\*?\s*$/i, keys: ["email", "email address", "e-mail"] },
+  { pattern: /^\s*(?:confirm\s+(?:your\s+)?)?e-?mail(?:\s+address)?(?:\s*\([^)]*\))?\s*\*?\s*$/i, keys: ["email", "email address", "e-mail"] },
   { pattern: /^\s*(?:phone(?:\s+number)?|mobile(?:\s+number)?|telephone|telefon|handy)(?:\s*\([^)]*\))?\s*\*?\s*$/i, keys: ["phone", "phone number", "mobile", "telephone"] },
   { pattern: /linkedin/i, keys: ["linkedin", "linkedin url", "linkedin profile"] },
   { pattern: /github/i, keys: ["github", "github url", "github profile"] },
