@@ -9,6 +9,7 @@ import {
 } from "./application-queue.js";
 import { runOneApplication, type ApplicationRunMode } from "./apply/run-one.js";
 import { config, hasOptionalEnrichment, hasSupabase } from "./config.js";
+import { enrichApplicationTargets } from "./target-enrichment.js";
 import { decideHarnessApproval } from "./agent-harness.js";
 import {
   sendPendingNotifications,
@@ -21,6 +22,8 @@ if (command === "discover") {
   await discoverJobs();
 } else if (command === "match") {
   await matchJobs();
+} else if (command === "enrich-targets") {
+  await enrichApplicationTargets();
 } else if (command === "prepare-cvs") {
   await prepareCvPlans();
 } else if (command === "sync-applications") {
