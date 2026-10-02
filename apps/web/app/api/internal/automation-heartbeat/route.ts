@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
+import { resolve } from "node:path";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -86,11 +87,16 @@ export async function POST(request: Request) {
     }, { status: 202 });
   }
 
+  const currentWorkingDirectory = process.cwd();
+  const repositoryRoot = currentWorkingDirectory.endsWith("/apps/web")
+    ? resolve(currentWorkingDirectory, "../..")
+    : currentWorkingDirectory;
+
   const child = spawn(
     "npx",
     ["tsx", "apps/worker/src/render-cycle.ts"],
     {
-      cwd: process.cwd(),
+      cwd: repositoryRoot,
       env: {
         ...process.env,
         REMOTEJOBOS_ALLOW_SUBMIT: "true",
