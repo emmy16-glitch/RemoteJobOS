@@ -405,7 +405,7 @@ export async function enrichApplicationTargets(): Promise<{
 
   const companyLimit = Math.max(
     1,
-    Math.min(50, Number(process.env.REMOTEJOBOS_ENRICH_COMPANIES_PER_RUN ?? "20") || 20)
+    Math.min(50, Number(process.env.REMOTEJOBOS_ENRICH_COMPANIES_PER_RUN ?? "50") || 50)
   );
   const probeCache = new Map<string, CandidateJob[] | null>();
 
