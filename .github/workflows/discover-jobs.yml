@@ -4,7 +4,7 @@ name: Discover remote jobs
 
 on:
   schedule:
-    - cron: "56 * * * *"
+    - cron: "7,22,37,52 * * * *"
   workflow_dispatch:
   push:
     branches: [main]
