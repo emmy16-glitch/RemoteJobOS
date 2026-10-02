@@ -21,7 +21,8 @@
     "worker:process-approved-submission": "npm run process-approved-submission --workspace @remotejobos/worker",
     "worker:process-auto-submissions": "npm run process-auto-submissions --workspace @remotejobos/worker",
     "worker:sync-gmail": "npm run sync-gmail --workspace @remotejobos/worker",
-    "worker:send-notifications": "npm run send-notifications --workspace @remotejobos/worker"
+    "worker:send-notifications": "npm run send-notifications --workspace @remotejobos/worker",
+    "worker:enrich-targets": "npm run enrich-targets --workspace @remotejobos/worker"
   },
   "engines": {
     "node": ">=22"
