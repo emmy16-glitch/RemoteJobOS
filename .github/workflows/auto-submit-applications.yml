@@ -3,7 +3,7 @@ name: Auto-submit verified applications
 on:
   # Five-minute recovery catch-up, plus an immediate pass after review completes.
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "3-58/5 * * * *"
   workflow_run:
     workflows: ["Review application queue"]
     types: [completed]
