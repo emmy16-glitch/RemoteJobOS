@@ -2,6 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { refreshSessionOnly, updateSession } from "./lib/supabase/proxy";
 
 export async function proxy(request: NextRequest) {
+  if (request.nextUrl.pathname === "/api/internal/automation-heartbeat") {
+    return NextResponse.next({ request });
+  }
+
   if (request.nextUrl.pathname === "/api/gmail/callback") {
     // Never redirect the OAuth callback: refresh the Supabase session so the
     // route sees a current session, then let the route handle logged-out,
