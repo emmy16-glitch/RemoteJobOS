@@ -17,7 +17,8 @@
     "process-approved-submission": "npm run build --workspace @remotejobos/core && tsx src/index.ts process-approved-submission",
     "process-auto-submissions": "npm run build --workspace @remotejobos/core && tsx src/index.ts process-auto-submissions",
     "sync-gmail": "npm run build --workspace @remotejobos/core && tsx src/index.ts sync-gmail",
-    "send-notifications": "npm run build --workspace @remotejobos/core && tsx src/index.ts send-notifications"
+    "send-notifications": "npm run build --workspace @remotejobos/core && tsx src/index.ts send-notifications",
+    "enrich-targets": "npm run build --workspace @remotejobos/core && tsx src/index.ts enrich-targets"
   },
   "dependencies": {
     "@browserbasehq/stagehand": "4.1.0",
