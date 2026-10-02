@@ -588,3 +588,39 @@ test("does not treat employment restriction questions as current employer fields
 
   assert.equal(plan[0]?.action.type, "human-review");
 });
+
+
+test("matches exact aggregator titles without crossing seniority levels", async () => {
+  const { isStrongJobTitleMatch, jobTitleSimilarity } = await import("../src/job-target.ts");
+
+  assert.equal(
+    isStrongJobTitleMatch(
+      "Application Security Engineer AppSec",
+      "Application Security Engineer (AppSec)"
+    ),
+    true
+  );
+  assert.ok(jobTitleSimilarity("SEO Automation Engineer", "SEO Automation Engineer") >= 0.99);
+  assert.equal(
+    isStrongJobTitleMatch("Senior Software Engineer", "Junior Software Engineer"),
+    false
+  );
+});
+
+test("derives ATS board candidates from company and Himalayas provenance", async () => {
+  const { atsBoardKeyCandidates } = await import("../src/job-target.ts");
+
+  const bjak = atsBoardKeyCandidates(
+    "Bjak",
+    "https://himalayas.app/companies/bjak/jobs/application-security-engineer-appsec"
+  );
+  assert.ok(bjak.includes("bjak"));
+  assert.ok(bjak.includes("bjakcareer"));
+
+  const searchAtlas = atsBoardKeyCandidates(
+    "Search Atlas",
+    "https://himalayas.app/companies/search-atlas/jobs/seo-automation-engineer"
+  );
+  assert.ok(searchAtlas.includes("search-atlas"));
+  assert.ok(searchAtlas.includes("searchatlas"));
+});
