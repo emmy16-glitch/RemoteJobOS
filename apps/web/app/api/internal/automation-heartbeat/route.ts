@@ -25,7 +25,14 @@ async function authorized(request: Request): Promise<boolean> {
   const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
   const supabaseUrl = process.env.SUPABASE_URL ?? "";
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
-  if (!token || !supabaseUrl || !serviceRoleKey) return false;
+  if (!token || !supabaseUrl || !serviceRoleKey) {
+    console.error("[automation-heartbeat] auth prerequisites missing", {
+      hasToken: Boolean(token),
+      hasSupabaseUrl: Boolean(supabaseUrl),
+      hasServiceRoleKey: Boolean(serviceRoleKey)
+    });
+    return false;
+  }
 
   try {
     const response = await fetch(
@@ -42,9 +49,24 @@ async function authorized(request: Request): Promise<boolean> {
       }
     );
 
-    if (!response.ok) return false;
-    return (await response.json()) === true;
-  } catch {
+    if (!response.ok) {
+      console.error("[automation-heartbeat] Supabase validator request failed", {
+        status: response.status,
+        body: (await response.text()).slice(0, 500)
+      });
+      return false;
+    }
+
+    const valid = (await response.json()) === true;
+    if (!valid) {
+      console.error("[automation-heartbeat] Supabase validator rejected heartbeat");
+    }
+    return valid;
+  } catch (error) {
+    console.error(
+      "[automation-heartbeat] validator transport error",
+      error instanceof Error ? error.message : String(error)
+    );
     return false;
   }
 }
