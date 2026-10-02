@@ -19,11 +19,14 @@ on:
       - ".github/workflows/review-application-queue.yml"
       - "apps/worker/src/apply/**"
       - "apps/worker/src/application-queue.ts"
+      - "apps/worker/src/target-enrichment.ts"
+      - "apps/worker/src/persist.ts"
       - "apps/worker/src/agent-harness.ts"
       - "apps/worker/src/prepare-cvs.ts"
       - "apps/worker/src/sources/remotive.ts"
       - "packages/core/src/planner.ts"
       - "packages/core/src/scoring.ts"
+      - "packages/core/src/job-target.ts"
 
 permissions:
   contents: read
@@ -56,6 +59,8 @@ jobs:
           test -n "$SUPABASE_SERVICE_ROLE_KEY"
       - name: Re-score the current remote-job snapshot
         run: npm run worker:match
+      - name: Resolve aggregator jobs to verified employer targets
+        run: npm run worker:enrich-targets
       - name: Prepare CV plans for newest strong matches
         run: npm run worker:prepare-cvs
       - name: Create or refresh application rows and queue review tasks
