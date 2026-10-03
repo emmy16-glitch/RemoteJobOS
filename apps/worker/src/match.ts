@@ -37,16 +37,30 @@ type ExistingMatchRow = {
 };
 
 async function supabaseGet<T>(path: string): Promise<T> {
-  const response = await fetch(`${config.supabaseUrl}/rest/v1/${path}`, {
-    headers: {
-      apikey: config.supabaseServiceRoleKey,
-      authorization: `Bearer ${config.supabaseServiceRoleKey}`
-    }
-  });
-  if (!response.ok) {
-    throw new Error(`Supabase GET failed: ${response.status} ${await response.text()}`);
+  let lastError = "unknown Supabase error";
+
+  for (let attempt = 1; attempt <= 4; attempt += 1) {
+    const response = await fetch(`${config.supabaseUrl}/rest/v1/${path}`, {
+      headers: {
+        apikey: config.supabaseServiceRoleKey,
+        authorization: `Bearer ${config.supabaseServiceRoleKey}`
+      }
+    });
+
+    if (response.ok) return response.json() as Promise<T>;
+
+    const body = await response.text();
+    lastError = `${response.status} ${body}`;
+    const retryable =
+      response.status === 429 ||
+      response.status >= 500 ||
+      /57014|statement timeout|connection timeout/i.test(body);
+
+    if (!retryable || attempt === 4) break;
+    await new Promise((resolve) => setTimeout(resolve, attempt * attempt * 1000));
   }
-  return response.json() as Promise<T>;
+
+  throw new Error(`Supabase GET failed: ${lastError}`);
 }
 
 async function supabaseGetAll<T>(path: string, pageSize = 1000): Promise<T[]> {
@@ -67,7 +81,7 @@ async function supabaseGetAll<T>(path: string, pageSize = 1000): Promise<T[]> {
 async function persistMatches(rows: Array<Record<string, unknown>>): Promise<void> {
   if (!rows.length) return;
 
-  const chunkSize = 500;
+  const chunkSize = 250;
   for (let index = 0; index < rows.length; index += chunkSize) {
     const chunk = rows.slice(index, index + chunkSize);
     const response = await fetch(
@@ -105,7 +119,7 @@ async function fetchJobsByIds(jobIds: string[]): Promise<JobRow[]> {
   if (!jobIds.length) return [];
 
   const rows: JobRow[] = [];
-  const chunkSize = 75;
+  const chunkSize = 50;
 
   for (let index = 0; index < jobIds.length; index += chunkSize) {
     const chunk = jobIds.slice(index, index + chunkSize);
@@ -128,7 +142,7 @@ export async function matchJobs() {
   }
 
   const profiles = await supabaseGet<ProfileRow[]>(
-    "career_profiles?select=id,profile,updated_at&order=updated_at.desc&limit=1000"
+    "career_profiles?select=id,profile,updated_at&limit=1000"
   );
   if (!profiles.length) {
     console.log("[match] No career profile exists yet.");
@@ -138,8 +152,8 @@ export async function matchJobs() {
   // Keep the normal polling query thin. Full descriptions are fetched only
   // for jobs whose content fingerprint (or profile revision) changed.
   const jobs = await supabaseGetAll<ThinJobRow>(
-    "jobs?select=id,content_fingerprint&remote=eq.true",
-    1000
+    "jobs?select=id,content_fingerprint&remote=eq.true&order=id.asc",
+    250
   );
 
   let total = 0;
@@ -149,8 +163,8 @@ export async function matchJobs() {
 
   for (const profileRow of profiles) {
     const existingMatches = await supabaseGetAll<ExistingMatchRow>(
-      `job_matches?select=job_id,decision,input_fingerprint&profile_id=eq.${encodeURIComponent(profileRow.id)}`,
-      1000
+      `job_matches?select=job_id,decision,input_fingerprint&profile_id=eq.${encodeURIComponent(profileRow.id)}&order=job_id.asc`,
+      250
     );
     const existingByJob = new Map(
       existingMatches.map((match) => [match.job_id, match])
