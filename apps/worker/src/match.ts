@@ -139,7 +139,7 @@ export async function matchJobs() {
   // for jobs whose content fingerprint (or profile revision) changed.
   const jobs = await supabaseGetAll<ThinJobRow>(
     "jobs?select=id,content_fingerprint&remote=eq.true",
-    2000
+    1000
   );
 
   let total = 0;
@@ -150,7 +150,7 @@ export async function matchJobs() {
   for (const profileRow of profiles) {
     const existingMatches = await supabaseGetAll<ExistingMatchRow>(
       `job_matches?select=job_id,decision,input_fingerprint&profile_id=eq.${encodeURIComponent(profileRow.id)}`,
-      2000
+      1000
     );
     const existingByJob = new Map(
       existingMatches.map((match) => [match.job_id, match])
