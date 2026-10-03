@@ -33,7 +33,7 @@ type JobRow = {
 type ExistingMatchRow = {
   job_id: string;
   decision: string;
-  breakdown: Record<string, unknown> | null;
+  input_fingerprint: string | null;
 };
 
 async function supabaseGet<T>(path: string): Promise<T> {
@@ -98,8 +98,7 @@ function matchInputFingerprint(
 }
 
 function persistedInputFingerprint(match: ExistingMatchRow | undefined): string {
-  const value = match?.breakdown?._inputFingerprint;
-  return typeof value === "string" ? value : "";
+  return match?.input_fingerprint ?? "";
 }
 
 async function fetchJobsByIds(jobIds: string[]): Promise<JobRow[]> {
@@ -150,7 +149,7 @@ export async function matchJobs() {
 
   for (const profileRow of profiles) {
     const existingMatches = await supabaseGetAll<ExistingMatchRow>(
-      `job_matches?select=job_id,decision,breakdown&profile_id=eq.${encodeURIComponent(profileRow.id)}`,
+      `job_matches?select=job_id,decision,input_fingerprint&profile_id=eq.${encodeURIComponent(profileRow.id)}`,
       2000
     );
     const existingByJob = new Map(
@@ -186,13 +185,11 @@ export async function matchJobs() {
 
       const result = scoreJob(job, profileRow.profile);
       const decision = result.decision;
+      const inputFingerprint = matchInputFingerprint(row, profileRow.updated_at);
       existingByJob.set(row.id, {
         job_id: row.id,
         decision,
-        breakdown: {
-          ...result.breakdown,
-          _inputFingerprint: matchInputFingerprint(row, profileRow.updated_at)
-        }
+        input_fingerprint: inputFingerprint
       });
 
       return {
@@ -200,11 +197,9 @@ export async function matchJobs() {
         profile_id: profileRow.id,
         score: result.total,
         decision,
-        breakdown: {
-          ...result.breakdown,
-          _inputFingerprint: matchInputFingerprint(row, profileRow.updated_at)
-        },
-        reasons: [...result.reasons, ...result.missingSignals]
+        breakdown: result.breakdown,
+        reasons: [...result.reasons, ...result.missingSignals],
+        input_fingerprint: matchInputFingerprint(row, profileRow.updated_at)
       };
     });
 
