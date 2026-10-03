@@ -4,6 +4,12 @@ on:
   schedule:
     - cron: "10,25,40,55 * * * *"
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/match-jobs.yml"
+      - "apps/worker/src/match.ts"
+      - "packages/core/src/scoring.ts"
   workflow_run:
     workflows: ["Discover remote jobs"]
     types: [completed]
