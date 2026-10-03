@@ -959,18 +959,26 @@ async function syncProfileApplications(profile: ProfileRow): Promise<{
       application.status = "shortlisted";
       application.next_action =
         "Discovery-only: no validated employer application URL is available yet.";
-    } else if (
-      eligible &&
-      !application.submission_fenced_at &&
-      !application.submitted_at &&
-      (application.status === "shortlisted" || legacyRetryableReview)
-    ) {
-      await updateApplication(application.id, {
-        status: "cv-prepared",
-        next_action: "cloud-dry-run"
-      });
-      application.status = "cv-prepared";
-      application.next_action = "cloud-dry-run";
+    } else {
+      const restorableShortlist =
+        application.status === "shortlisted" &&
+        /^(?:Discovery-only: no validated employer application URL is available yet\.|Retryable automation failure:)/i.test(
+          application.next_action ?? ""
+        );
+
+      if (
+        eligible &&
+        !application.submission_fenced_at &&
+        !application.submitted_at &&
+        (restorableShortlist || legacyRetryableReview)
+      ) {
+        await updateApplication(application.id, {
+          status: "cv-prepared",
+          next_action: "cloud-dry-run"
+        });
+        application.status = "cv-prepared";
+        application.next_action = "cloud-dry-run";
+      }
     }
   }
 
@@ -1046,18 +1054,20 @@ async function syncProfileApplications(profile: ProfileRow): Promise<{
     };
   });
 
+  let queued = 0;
   if (tasks.length) {
-    await request(
-      "agent_tasks?on_conflict=idempotency_key",
+    const inserted = await request<Array<{ id: string }>>(
+      "agent_tasks?on_conflict=idempotency_key&select=id",
       {
         method: "POST",
-        headers: { prefer: "resolution=ignore-duplicates,return=minimal" },
+        headers: { prefer: "resolution=ignore-duplicates,return=representation" },
         body: JSON.stringify(tasks)
       }
     );
+    queued = inserted.length;
   }
 
-  return { created: created.length, queued: tasks.length };
+  return { created: created.length, queued };
 }
 
 
