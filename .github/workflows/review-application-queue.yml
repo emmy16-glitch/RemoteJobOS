@@ -57,8 +57,6 @@ jobs:
         run: |
           test -n "$SUPABASE_URL"
           test -n "$SUPABASE_SERVICE_ROLE_KEY"
-      - name: Re-score the current remote-job snapshot
-        run: npm run worker:match
       - name: Resolve aggregator jobs to verified employer targets
         run: npm run worker:enrich-targets
       - name: Prepare CV plans for newest strong matches
