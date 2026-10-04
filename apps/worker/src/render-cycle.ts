@@ -69,7 +69,18 @@ export async function runRenderAutomationCycle() {
 
   results.push(await runStep("discover", () => discoverJobs()));
   results.push(await runStep("match", () => matchJobs()));
-  results.push(await runStep("enrich-targets", () => enrichApplicationTargets()));
+
+  // Target enrichment scans the full jobs/matches corpus and can temporarily use
+  // hundreds of MB. On the 512 MB Render web service that can kill the process
+  // before queued applications are reviewed/submitted. Keep it opt-out so larger
+  // workers can still run it, while the constrained production web service can
+  // prioritize the application pipeline and run enrichment elsewhere/later.
+  if (process.env.REMOTEJOBOS_RENDER_TARGET_ENRICHMENT !== "false") {
+    results.push(await runStep("enrich-targets", () => enrichApplicationTargets()));
+  } else {
+    console.log("[render-cycle] skip enrich-targets (REMOTEJOBOS_RENDER_TARGET_ENRICHMENT=false)");
+  }
+
   results.push(await runStep("prepare-cvs", () => prepareCvPlans()));
   results.push(await runStep("sync-applications", () => syncApplications()));
 
