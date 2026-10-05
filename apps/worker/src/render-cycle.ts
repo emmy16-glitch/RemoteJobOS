@@ -5,6 +5,7 @@ import { discoverJobs } from "./discover.js";
 import { matchJobs } from "./match.js";
 import { enrichApplicationTargets } from "./target-enrichment.js";
 import { prepareCvPlans } from "./prepare-cvs.js";
+import { requeueApplicationsWithFreshCv } from "./requeue-fresh-cv.js";
 import {
   syncApplications,
   processApplicationTasks,
@@ -82,6 +83,7 @@ export async function runRenderAutomationCycle() {
   }
 
   results.push(await runStep("prepare-cvs", () => prepareCvPlans()));
+  results.push(await runStep("requeue-fresh-cvs", () => requeueApplicationsWithFreshCv()));
   results.push(await runStep("sync-applications", () => syncApplications()));
 
   const browserReady = await runStep("chromium-ready", () => ensureChromium());
